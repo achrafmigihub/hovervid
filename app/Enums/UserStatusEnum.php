@@ -1,0 +1,61 @@
+<?php
+
+namespace App\Enums;
+
+enum UserStatusEnum: string
+{
+    case ACTIVE = 'active';
+    case INACTIVE = 'inactive';
+    case SUSPENDED = 'suspended';
+    case PENDING = 'pending';
+    
+    /**
+     * Get all available status values
+     *
+     * @return array
+     */
+    public static function values(): array
+    {
+        return array_column(self::cases(), 'value');
+    }
+    
+    /**
+     * Check if status is active
+     *
+     * @return bool
+     */
+    public function isActive(): bool
+    {
+        return $this === self::ACTIVE;
+    }
+    
+    /**
+     * Check if status is inactive
+     *
+     * @return bool
+     */
+    public function isInactive(): bool
+    {
+        return $this === self::INACTIVE;
+    }
+    
+    /**
+     * Check if status is suspended
+     *
+     * @return bool
+     */
+    public function isSuspended(): bool
+    {
+        return $this === self::SUSPENDED;
+    }
+    
+    /**
+     * Check if status is pending
+     *
+     * @return bool
+     */
+    public function isPending(): bool
+    {
+        return $this === self::PENDING;
+    }
+} 
