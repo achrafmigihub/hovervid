@@ -65,58 +65,38 @@ public/mockServiceWorker.js
 .env*
 !.env.example
 
-# Laravel
-/vendor
-/node_modules
-/public/hot
-/public/storage
-/storage/*.key
-/.env
-/.env.backup
-/.phpunit.result.cache
-Homestead.json
-Homestead.yaml
-npm-debug.log
-yarn-error.log
-/.idea
-/.vscode
-/.vagrant
+# WordPress specific
+wp-config.php
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/backup-db/
+wp-content/cache/
+wp-content/backups/
 
-# WordPress Plugin
+# Development files
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+vendor/
 *.log
 *.sql
 *.sqlite
-*.zip
-*.tar.gz
-*.tgz
-*.bak
-*.swp
-*.swo
-*.tmp
-*.temp
-*.cache
-*.pid
-*.pid.lock
-*.lock
-*.DS_Store
-Thumbs.db
 
-# Project specific
-.cursor/
-database/backups/
-*.sql
-*.sqlite
+# IDE specific
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Build files
+dist/
+build/
 *.zip
 *.tar.gz
-*.tgz
-*.bak
+
+# Temporary files
 *.swp
 *.swo
-*.tmp
-*.temp
-*.cache
-*.pid
-*.pid.lock
-*.lock
-*.DS_Store
-Thumbs.db
+*~

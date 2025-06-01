@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Technical stack
+
+
+- SQL databases
+- Separate databases for dev, test, and prod
+- Elasticsearch for search, using azure for hosting
+- Elastic.co will have dev and prod indexes

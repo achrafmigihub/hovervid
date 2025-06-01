@@ -1,0 +1,114 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Authentication Rules
+API Keys: Always use Wasabi API keys (Root keys or keys with billing permissions), not WAC API keys
+
+Authorization Header: Format as "Authorization": "AccessKey:SecretKey"
+
+Signature Versions: Support both v2 and v4 signing, with v4 recommended for better security
+
+Base URL Rules
+Stats API: Always use https://stats.wasabisys.com for utilization endpoints
+
+S3 API: Use https://s3.wasabisys.com for bucket operations
+
+Utilization API Rules
+Standalone Utilizations Endpoint: /v1/standalone/utilizations
+
+Optional params: includeRegionalUtilizations, pageNum, pageSize, latest, from, to
+
+Max pageSize: 100
+
+Bucket Utilizations Endpoint: /v1/standalone/utilizations/bucket
+
+Optional params: pageNum, pageSize, from, to
+
+Bucket Name Utilizations: /v1/standalone/utilizations/bucket/:bucketName
+
+Required param: bucketName in URL path
+
+Optional params: pageNum, pageSize, latest, from, to
+
+Bucket Number Utilizations: /v1/standalone/utilizations/bucket/:bucketNumber
+
+Required param: bucketNumber in URL path
+
+Optional params: same as bucket name endpoint
+
+Bucket Operation Rules
+DELETE Bucket:
+
+Use ?force_delete=true to delete non-empty buckets
+
+Format: DELETE http://s3.wasabisys.com/my-bucket?force_delete=true
+
+Rename Bucket:
+
+Use MOVE method with Destination header
+
+Format: MOVE http://s3.wasabisys.com/old-bucket with Destination: new-bucket
+
+Bucket Limits:
+
+Default max buckets: 1000 (vs AWS's 100)
+
+Can be increased by contacting support
+
+Lifecycle Policies:
+
+Use ?lifecycle query parameter
+
+Supports rules with expiration days and size filters
+
+Object Lock:
+
+Use ?object-lock query parameter
+
+Modes: COMPLIANCE or GOVERNANCE
+
+Period: Days or Years (not both)
+
+Compliance:
+
+Use ?compliance query parameter
+
+Can set retention days and conditional holds
+
+Once locked, requires support to change
+
+Error Handling Rules
+Common Error Codes:
+
+403: AccessDenied, AccountNotActivated
+
+404: NoSuchEntity, NoSuchBucket
+
+409: EntityAlreadyExists
+
+503: TemporarilyUnavailable
+
+Special Cases:
+
+Handle RequestTimeTooSkewed for clock sync issues
+
+Handle InvalidAccessKeyId for auth failures
+
+Handle BucketNotEmpty when deleting without force_delete
+
+Unsupported Features
+Not Supported:
+
+SOAP protocol
+
+Bucket website hosting
+
+S3 Select
+
+Bucket acceleration
+
+Intelligent tiering
+
+Public access blocks
