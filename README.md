@@ -1,177 +1,210 @@
 # HoverVid
 
-A comprehensive platform that provides sign language video translations for website content. The system consists of a Laravel-based admin panel for managing domains and subscriptions, along with a WordPress plugin that enables real-time text translation features.
+A comprehensive platform for providing sign language video translations on websites. The system consists of a Laravel-based management panel and a WordPress plugin that enables website owners to offer sign language translations for their content.
 
-## Project Overview
+## Overview
 
-HoverVid makes website content accessible through sign language translation technology. Website owners can install our WordPress plugin, which automatically scans their content and provides video translations for visitors who need sign language interpretation.
+HoverVid allows website visitors to access sign language translations by hovering over text content. The platform includes domain authorization, real-time verification, and a centralized management system for controlling plugin access across multiple websites.
 
-The platform includes two main components:
-- A Laravel backend application for domain management and user administration
-- A WordPress plugin that handles the frontend text scanning and video playback
+## Project Structure
 
-## Architecture
+```
+├── app/                     # Laravel application core
+├── config/                  # Laravel configuration files
+├── database/                # Database migrations and seeders
+├── resources/               # Views, assets, and frontend resources
+├── routes/                  # API and web routes
+├── public/                  # Web-accessible files
+├── storage/                 # Application storage
+├── tests/                   # Application tests
+├── hovervid-plugin/         # WordPress plugin
+│   ├── admin/               # Admin interface
+│   ├── assets/              # Plugin assets (icons, logos)
+│   ├── includes/            # Plugin core classes
+│   ├── public/              # Frontend assets (CSS, JS)
+│   └── sign-language-video.php  # Main plugin file
+├── plugin-api/              # Standalone API endpoints
+├── composer.json            # PHP dependencies
+├── package.json             # Node.js dependencies
+└── artisan                  # Laravel command-line interface
+```
 
-### Laravel Backend Application
-The main application handles user management, domain authorization, subscription management, and provides APIs for the WordPress plugin. Built with Laravel and Vue.js, it includes:
+## Features
 
-- Domain management system with real-time verification
-- User authentication and subscription handling
-- API endpoints for plugin communication
-- Admin dashboard for monitoring and control
-- PostgreSQL database integration
+### Laravel Backend
+- Domain management and authorization
+- User registration and subscription handling
+- Real-time plugin status monitoring
+- Database-driven domain verification
+- Admin panel for managing authorized domains
 
 ### WordPress Plugin
-Located in the `hovervid-plugin` directory, this plugin installs on client websites to provide:
-
 - Automatic text content scanning
-- Translation icon injection on hover
-- Floating video player for sign language content
+- Floating video player for translations
 - Real-time domain verification
-- Graceful error handling for offline scenarios
-
-## Technical Implementation
-
-The system uses a centralized verification approach where the WordPress plugin continuously checks with the database to ensure the domain is authorized. This happens through:
-
-- Domain verification every 30 seconds
-- Immediate checks on user interactions
-- Graceful degradation when database is unavailable
-- Complete functionality blocking for unauthorized domains
-
-### Database Schema
-
-The core functionality relies on a `domains` table with these key fields:
-- `domain`: The website domain
-- `is_verified`: Main control column (true/false)
-- `user_id`: Associated user account
-- `subscription_expires_at`: Subscription management
-
-When `is_verified` is true, the plugin works normally. When false, all functionality is disabled with appropriate user messaging.
+- Graceful error handling
+- Mobile-responsive interface
 
 ## Installation
 
-### Backend Setup
-1. Clone the repository
-2. Install PHP dependencies: `composer install`
-3. Install Node dependencies: `npm install`
-4. Configure your `.env` file with database credentials
-5. Run migrations: `php artisan migrate`
-6. Build frontend assets: `npm run build`
+### Laravel Application
 
-### WordPress Plugin
-1. Copy the `hovervid-plugin` directory to your WordPress `wp-content/plugins/` folder
-2. Update database connection settings in `hovervid-plugin/includes/class-database.php`
-3. Activate the plugin through WordPress admin
-4. The plugin will automatically check domain authorization
-
-## Configuration
-
-### Database Connection
-Update the database credentials in the plugin's database class:
-
-```php
-private $host = 'your-database-host';
-private $database = 'your-database-name'; 
-private $username = 'your-username';
-private $password = 'your-password';
+1. Clone the repository and install dependencies:
+```bash
+composer install
+npm install
 ```
 
-### Domain Management
-Control plugin functionality through the database:
+2. Copy environment configuration:
+```bash
+cp .env.example .env
+```
+
+3. Configure your database connection in `.env`:
+```
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=hovervid_db
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+```
+
+4. Generate application key and run migrations:
+```bash
+php artisan key:generate
+php artisan migrate
+```
+
+5. Start the development server:
+```bash
+php artisan serve
+```
+
+### WordPress Plugin
+
+1. Copy the `hovervid-plugin` directory to your WordPress installation:
+```bash
+cp -r hovervid-plugin /path/to/wordpress/wp-content/plugins/
+```
+
+2. Configure the database connection in `hovervid-plugin/includes/class-database.php`
+
+3. Activate the plugin through the WordPress admin panel
+
+## Database Schema
+
+The system uses PostgreSQL with the following main table:
 
 ```sql
--- Enable plugin for a domain
-UPDATE domains SET is_verified = true WHERE domain = 'example.com';
-
--- Disable plugin for a domain
-UPDATE domains SET is_verified = false WHERE domain = 'example.com';
+CREATE TABLE domains (
+    id BIGSERIAL PRIMARY KEY,
+    domain TEXT NOT NULL UNIQUE,
+    is_verified BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    user_id BIGINT,
+    platform TEXT DEFAULT 'wordpress',
+    plugin_status TEXT DEFAULT 'inactive',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ## Usage
 
-### For Website Owners
-After installing the WordPress plugin on your site, contact the platform administrator to authorize your domain. Once authorized, visitors will see translation icons when hovering over text content.
+### Managing Domains
 
-### For Administrators
-Use the Laravel admin panel to:
-- Manage domain authorizations
-- Monitor plugin usage across domains
-- Handle user subscriptions and payments
-- View usage analytics and reports
+Add authorized domains through the Laravel admin panel or directly via database:
+
+```sql
+INSERT INTO domains (domain, is_verified, user_id) 
+VALUES ('example.com', true, 1);
+```
+
+### Plugin Behavior
+
+The WordPress plugin behavior is controlled by the `is_verified` column:
+
+- `is_verified = true`: Plugin functions normally
+- `is_verified = false`: Plugin shows license expired message
+- Domain not in database: Plugin shows unauthorized message
+
+### Real-time Control
+
+Changes to domain verification status are reflected in the WordPress plugin within 30 seconds. The plugin checks domain status:
+
+- Every 30 seconds automatically
+- When the browser window regains focus
+- When the page becomes visible
+- Before any user interaction
+
+## API Endpoints
+
+The system provides AJAX endpoints for real-time communication:
+
+- `POST /wp-admin/admin-ajax.php?action=slvp_check_domain` - Check domain status
+- `POST /wp-admin/admin-ajax.php?action=slvp_get_video` - Retrieve translation videos
+
+## Configuration
+
+### WordPress Plugin
+
+The plugin uses a centralized domain verifier that handles all database connections and verification logic. Database connection parameters are configured in `includes/class-database.php`.
+
+### Laravel Backend
+
+Key configuration files:
+- `config/database.php` - Database configuration
+- `config/app.php` - Application settings
+- `.env` - Environment variables
 
 ## Development
 
-### Laravel Application
-The backend follows standard Laravel conventions:
-- Controllers in `app/Http/Controllers`
-- Models in `app/Models`
-- Vue.js frontend in `resources/js`
-- API routes in `routes/api.php`
+### Requirements
 
-### WordPress Plugin
-The plugin uses a clean object-oriented structure:
-- Main plugin file: `sign-language-video.php`
-- Core classes in `includes/` directory
-- Frontend assets in `public/` directory
-- Centralized domain verification system
+- PHP 8.1 or higher
+- PostgreSQL 12 or higher
+- Node.js 16 or higher
+- Composer
+- WordPress 5.0 or higher (for plugin)
 
-### Key Classes
-- `SLVP_Domain_Verifier`: Single source of truth for domain verification
-- `SLVP_Video_Player`: Main plugin controller and asset management
-- `SLVP_Text_Processor`: Text scanning and icon injection
-- `SLVP_Api_Handler`: AJAX endpoints for frontend communication
+### Local Development
 
-## Error Handling
+1. Set up the Laravel application following the installation steps
+2. Configure a local PostgreSQL database
+3. Add your local domain to the database for testing
+4. Install the WordPress plugin on your local WordPress site
 
-The system includes comprehensive error handling:
+### Error Handling
 
-**Database Unavailable**: Plugin enters degraded mode with admin notices but no fatal errors
+The plugin includes comprehensive error handling:
 
-**Domain Not Authorized**: Clear error messages with instructions for domain authorization
-
-**Network Issues**: Graceful fallbacks with automatic recovery when connectivity returns
+- Database connection failures are handled gracefully
+- Plugin continues to function when the database is unavailable
+- Clear error messages are displayed to administrators
+- No fatal errors occur that could break WordPress sites
 
 ## Security
 
-- Domain authorization required for all plugin functionality
-- Nonce verification for AJAX requests
+- Domain authorization prevents unauthorized usage
+- NONCE verification for all AJAX requests
 - SQL injection protection with prepared statements
-- Input sanitization and validation throughout
+- Input sanitization for all user data
+- Graceful degradation when services are unavailable
 
 ## Browser Support
 
-The plugin works with modern browsers including Chrome, Firefox, Safari, and Edge. Mobile devices are supported with touch-friendly interactions.
+- Chrome, Firefox, Safari, Edge (latest versions)
+- Mobile browsers (iOS Safari, Chrome Mobile)
+- JavaScript ES6+ with appropriate fallbacks
 
-## File Structure
+## License
 
-```
-├── app/                          # Laravel application
-├── hovervid-plugin/              # WordPress plugin
-│   ├── sign-language-video.php  # Main plugin file
-│   ├── includes/                 # Core classes
-│   ├── public/                   # Frontend assets
-│   └── assets/                   # Icons and media
-├── resources/                    # Laravel frontend
-├── database/                     # Migrations and seeds
-├── routes/                       # API and web routes
-└── config/                       # Laravel configuration
-```
-
-## Performance
-
-The system is optimized for performance with:
-- Lazy loading of translation icons
-- Batched processing for large pages
-- Efficient DOM scanning with performance limits
-- Cached verification with periodic refresh
-- Throttled mutation observers for dynamic content
+This project is licensed under the GPL v2 or later.
 
 ## Support
 
-For technical support or domain authorization requests, provide:
-- Your domain name
+For technical support or domain authorization requests, contact support with:
+- Domain name
 - WordPress and plugin versions
-- Detailed description of any issues encountered
-
-The platform includes comprehensive logging to help diagnose issues quickly and efficiently.
+- Description of any issues
