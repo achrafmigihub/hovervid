@@ -34,11 +34,26 @@ try {
     exit;
 }
 
-// Get the action from query parameter
+// Get the action from query parameter or URL path
+$path = $_SERVER['REQUEST_URI'];
+$pathParts = explode('/', trim($path, '/'));
 $action = $_GET['action'] ?? 'list';
+
+// Extract user ID from URL path if present (for API requests)
+$userIdFromPath = null;
+foreach ($pathParts as $index => $part) {
+    if ($part === 'users' && isset($pathParts[$index + 1]) && is_numeric($pathParts[$index + 1])) {
+        $userIdFromPath = (int)$pathParts[$index + 1];
+        $action = 'view';
+        break;
+    }
+}
 
 // Handle different actions
 switch ($action) {
+    case 'view':
+        viewUser($pdo, $userIdFromPath);
+        break;
     case 'create':
         createUser($pdo);
         break;
@@ -52,6 +67,67 @@ switch ($action) {
     default:
         listUsers($pdo);
         break;
+}
+
+/**
+ * View a user by ID
+ */
+function viewUser($pdo, $userId) {
+    // Only allow GET method for viewing users
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        http_response_code(405);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Method not allowed, use GET'
+        ]);
+        return;
+    }
+
+    try {
+        // If no user ID provided, return error
+        if (!$userId) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => 'User ID is required'
+            ]);
+            return;
+        }
+
+        // Check if user exists
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :id");
+        $stmt->bindValue(':id', $userId, PDO::PARAM_INT);
+        $stmt->execute();
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) {
+            http_response_code(404);
+            echo json_encode([
+                'success' => false,
+                'message' => 'User not found'
+            ]);
+            return;
+        }
+
+        // Return success response
+        echo json_encode([
+            'success' => true,
+            'message' => 'User details retrieved successfully',
+            'user' => $user
+        ]);
+
+    } catch (Exception $e) {
+        // Log error details
+        error_log('Error viewing user: ' . $e->getMessage());
+        
+        // Return error response
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to retrieve user details',
+            'error' => $e->getMessage()
+        ]);
+    }
 }
 
 /**
@@ -109,7 +185,7 @@ function createUser($pdo) {
         $fullName = $data['name'];
         $email = $data['email'];
         $role = $data['role'];
-        $status = $data['status'] ?? 'active';
+        $status = $data['status'] ?? 'inactive';
         $createdAt = date('Y-m-d H:i:s');
 
         // Check if users table exists and has the necessary columns
@@ -450,7 +526,7 @@ function listUsers($pdo) {
         }
         
         if ($status) {
-            $query .= " AND status = :status";
+            $query .= " AND LOWER(status) = LOWER(:status)";
             $params[':status'] = $status;
         }
         

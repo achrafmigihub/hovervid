@@ -1,11 +1,14 @@
-import { defineStore } from 'pinia'
-import axios from 'axios'
-import { apiCall, handleApiError } from '@/utils/errorHandler'
-import { 
-  notifyLoginToServiceWorker, 
-  notifyLogoutToServiceWorker, 
-  checkServiceWorkerAuth 
+import { ability } from '@/plugins/casl/ability'
+import sessionService from '@/services/sessionService'
+import { apiCall } from '@/utils/errorHandler'
+import { getBrowserFingerprint } from '@/utils/fingerprint'
+import {
+    checkServiceWorkerAuth,
+    notifyLoginToServiceWorker,
+    notifyLogoutToServiceWorker
 } from '@/utils/service-worker-setup'
+import axios from 'axios'
+import { defineStore } from 'pinia'
 import { useRouter } from 'vue-router'
 
 export const useAuthStore = defineStore('auth', {
@@ -19,6 +22,7 @@ export const useAuthStore = defineStore('auth', {
     sessionInitialized: false, // Track if session was initialized
     lastTokenRefresh: null, // Track when token was last refreshed
     tokenRefreshInterval: null, // Store the interval ID
+    lastKnownFingerprint: null, // Store browser fingerprint for security
   }),
 
   getters: {
@@ -54,6 +58,14 @@ export const useAuthStore = defineStore('auth', {
         } catch (e) {
           console.error('Failed to parse userData:', e)
           userData = null
+        }
+        
+        // Get browser fingerprint
+        try {
+          this.lastKnownFingerprint = await getBrowserFingerprint()
+          console.log('Generated browser fingerprint during init')
+        } catch (e) {
+          console.error('Failed to generate fingerprint:', e)
         }
         
         // If we have either a token, sessionId, or userData, we can initialize the session
@@ -109,13 +121,24 @@ export const useAuthStore = defineStore('auth', {
           console.log('No valid auth data found in localStorage, trying session recovery')
           await this.recoverSessionAuth()
           
+          // Mark session as initialized even if no auth data was found
+          // This allows navigation to render properly for guests
+          this.sessionInitialized = true
+          
+          // Only clear auth data if we had some data to begin with
+          // For completely new/guest users, failed session recovery is normal
           if (!this.isAuthenticated) {
-            console.log('Session recovery failed, clearing auth data')
-            this.clearAuthData()
+            console.log('No existing session found - this is normal for guest users')
+            // Don't call clearAuthData() here as there's nothing to clear for guests
+            // and it prevents unnecessary error logging
           }
         }
       } catch (e) {
         console.error('Auth initialization error:', e)
+        
+        // Ensure session is marked as initialized even on error
+        this.sessionInitialized = true
+        
         // Try session recovery as last resort
         try {
           await this.recoverSessionAuth()
@@ -232,19 +255,30 @@ export const useAuthStore = defineStore('auth', {
           password: credentials.password ? '[REDACTED]' : null
         })
         
+        // Generate fingerprint for device identification
+        const fingerprint = await getBrowserFingerprint()
+        this.lastKnownFingerprint = fingerprint
+        
         // Get CSRF cookie first from Laravel Sanctum
         await axios.get('/sanctum/csrf-cookie', {
           withCredentials: true
         });
         
-        // Login request
+        // Login request with fingerprint data for security
         const response = await axios({
           method: 'post',
           url: '/api/auth/login',
           data: {
             email: credentials.email,
             password: credentials.password,
-            remember: true // Always remember the user for persistent sessions
+            remember: true, // Always remember the user for persistent sessions
+            fingerprint: fingerprint.hash,
+            fingerprint_components: {
+              platform: fingerprint.components.platform,
+              browser: fingerprint.components.userAgent,
+              screen: `${fingerprint.components.screenWidth}x${fingerprint.components.screenHeight}`,
+              timezone: fingerprint.components.timezone
+            }
           },
           headers: {
             'Content-Type': 'application/json',
@@ -264,6 +298,17 @@ export const useAuthStore = defineStore('auth', {
             // Notify service worker about login
             notifyLoginToServiceWorker();
             
+            // Integrate with session service
+            try {
+              // Initialize the session service with the current session
+              if (this.sessionId) {
+                const sessionStore = sessionService.getStore()
+                sessionStore.onLogin(this.sessionId)
+              }
+            } catch (e) {
+              console.error('Failed to initialize session service:', e)
+            }
+            
             return response.data
           } else {
             console.error('Login response error:', response.data)
@@ -274,14 +319,23 @@ export const useAuthStore = defineStore('auth', {
           throw new Error('Invalid response format from server')
         }
       } catch (error) {
-        this.error = error.message || 'Login failed'
-        
-        // Enhanced error logging
-        console.error('Login error details:', {
-          status: error.response?.status,
-          message: error.message,
-          responseData: error.response?.data
-        })
+        // Handle suspended account specific error
+        if (error.response?.status === 403 && error.response?.data?.message?.includes('suspended')) {
+          this.error = 'Your account has been suspended. Please contact administration for assistance.'
+          console.error('Login failed: Account suspended', {
+            status: error.response.status,
+            message: error.response.data.message
+          })
+        } else {
+          this.error = error.message || 'Login failed'
+          
+          // Enhanced error logging
+          console.error('Login error details:', {
+            status: error.response?.status,
+            message: error.message,
+            responseData: error.response?.data
+          })
+        }
         
         if (error.response?.data?.errors) {
           error.validationErrors = error.response.data.errors;
@@ -313,6 +367,30 @@ export const useAuthStore = defineStore('auth', {
         
         throw new Error('Registration failed: Invalid response from server')
       } catch (error) {
+        // Special case: handle 422 responses that might actually be successful registrations
+        // Some Laravel endpoints return 422 even when the registration was successful
+        if (error.response?.status === 422) {
+          // Check if there are actual validation errors
+          const errors = error.response.data.errors || {}
+          const hasRealErrors = Object.values(errors).some(
+            err => err && (Array.isArray(err) ? err.length > 0 : err.toString().trim() !== '')
+          )
+          
+          // If no real validation errors, treat as success
+          if (!hasRealErrors) {
+            console.log('422 without real errors, treating as success')
+            // Try to extract user data from response if available
+            if (error.response.data.user || error.response.data.data) {
+              const userData = error.response.data.user || error.response.data.data
+              this.setAuthData(userData)
+              return userData
+            }
+            
+            // Return a minimal success object
+            return { success: true }
+          }
+        }
+        
         // Handle validation errors
         if (error.response?.data?.errors) {
           const errors = error.response.data.errors
@@ -364,6 +442,14 @@ export const useAuthStore = defineStore('auth', {
       this.isLoading = true
       
       try {
+        // Notify session service of logout
+        try {
+          const sessionStore = sessionService.getStore()
+          sessionStore.onLogout()
+        } catch (e) {
+          console.error('Failed to notify session service of logout:', e)
+        }
+        
         if (!silent) {
           // Only send request to server if this is not a silent logout
           await axios({
@@ -424,11 +510,19 @@ export const useAuthStore = defineStore('auth', {
         'Session ID:', this.sessionId ? this.sessionId : 'No session ID')
       
       try {
+        // Generate current fingerprint for verification
+        const currentFingerprint = await getBrowserFingerprint()
+        
         // Add the session ID to the request if available
         const config = {
           headers: {},
           params: this.sessionId ? { session_id: this.sessionId } : {},
           withCredentials: true
+        }
+        
+        // Include fingerprint for verification
+        if (currentFingerprint) {
+          config.params.fingerprint = currentFingerprint.hash
         }
         
         // Add authorization header if token exists
@@ -439,6 +533,11 @@ export const useAuthStore = defineStore('auth', {
         const { data } = await axios.get('/api/auth/user', config)
         
         console.log('User data response:', data)
+        
+        // Check if there are security issues reported from the backend
+        if (data.security_issues) {
+          this.handleSecurityIssues(data.security_issues, currentFingerprint)
+        }
         
         // Handle different response formats
         if (data && data.status === 'success' && data.user) {
@@ -455,6 +554,9 @@ export const useAuthStore = defineStore('auth', {
             axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
           }
           
+          // Update stored fingerprint
+          this.lastKnownFingerprint = currentFingerprint
+          
           // Ensure session is initialized
           this.sessionInitialized = true
           
@@ -467,6 +569,9 @@ export const useAuthStore = defineStore('auth', {
           this.sessionId = data.session_id || this.sessionId
           localStorage.setItem('userData', JSON.stringify(this.user))
           localStorage.setItem('sessionId', this.sessionId)
+          
+          // Update stored fingerprint
+          this.lastKnownFingerprint = currentFingerprint
           
           // Ensure session is initialized
           this.sessionInitialized = true
@@ -553,6 +658,9 @@ export const useAuthStore = defineStore('auth', {
       
       // Setup persistent session handling
       this.setupPersistentSession()
+      
+      // Initialize CASL abilities based on user role
+      this.initializeAbilities()
     },
 
     clearAuthData() {
@@ -561,6 +669,7 @@ export const useAuthStore = defineStore('auth', {
       this.token = null
       this.sessionId = null
       this.sessionInitialized = false
+      this.lastKnownFingerprint = null
       
       // Clear the token refresh interval if it exists
       if (this.tokenRefreshInterval) {
@@ -575,6 +684,9 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('userData')
       localStorage.removeItem('sessionId')
+      
+      // Clear CASL abilities
+      ability.update([])
       
       // Clear any errors
       this.error = null
@@ -592,13 +704,73 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    // Initialize CASL abilities based on user role
+    initializeAbilities() {
+      if (!this.user) {
+        ability.update([])
+        return
+      }
+      
+      // Clear existing abilities
+      ability.update([])
+      
+      const role = this.user.role
+      
+      // Set up basic abilities for all users
+      const abilities = [
+        { action: 'read', subject: 'Auth' },
+      ]
+      
+      // Add admin-specific abilities
+      if (role === 'admin') {
+        abilities.push(
+          { action: 'read', subject: 'AclDemo' },
+          { action: 'read', subject: 'all' },
+          { action: 'manage', subject: 'all' }
+        )
+      }
+      
+      // Add client-specific abilities
+      if (role === 'client') {
+        abilities.push(
+          { action: 'read', subject: 'AclDemo' },
+          { action: 'read', subject: 'ClientPages' }
+        )
+      }
+      
+      // Update CASL ability instance
+      ability.update(abilities)
+      
+      // Save to cookie for persistence
+      const abilityStringified = JSON.stringify(abilities)
+      document.cookie = `userAbilityRules=${encodeURIComponent(abilityStringified)}; path=/; max-age=86400`
+      
+      console.log('CASL abilities initialized for role:', role, abilities)
+    },
+
     async recoverSessionAuth() {
       console.log('Attempting to recover session authentication')
       
       try {
-        // Use special session-only endpoint
+        // Generate current fingerprint for validation
+        let fingerprint = null;
+        try {
+          fingerprint = await getBrowserFingerprint();
+          console.log('Generated fingerprint for session recovery')
+        } catch (e) {
+          console.warn('Could not generate fingerprint for session recovery:', e.message)
+        }
+        
+        // NOTE: The browser will show a 401 network error in the console for guest users.
+        // This is normal browser behavior and cannot be suppressed. Our error handling
+        // below properly treats 401 responses as expected behavior for guests.
         const { data } = await axios.get('/api/auth/session-user', { 
-          withCredentials: true 
+          withCredentials: true,
+          params: {
+            fingerprint: fingerprint ? fingerprint.hash : undefined,
+            recovery: true,
+            timestamp: Date.now() // Prevent caching
+          }
         })
         
         console.log('Session recovery response:', data)
@@ -606,14 +778,155 @@ export const useAuthStore = defineStore('auth', {
         if (data && data.status === 'success' && data.user) {
           console.log('Successfully recovered session auth')
           this.setAuthData(data)
+          
+          // Store the fingerprint for future use
+          if (fingerprint) {
+            this.lastKnownFingerprint = fingerprint
+          }
+          
+          // If there are security issues reported from the backend, handle them
+          if (data.security_issues) {
+            this.handleSecurityIssues(data.security_issues, fingerprint)
+          }
+          
           return true
         } else {
           console.log('Session recovery had no valid user data')
           return false
         }
       } catch (error) {
-        console.log('Session recovery failed:', error.message)
-        return false
+        // Handle different error types appropriately
+        if (error.response) {
+          const status = error.response.status
+          
+          // 401 is expected when there's no valid session - log as info, not error
+          if (status === 401) {
+            console.log('No valid session found during recovery (401) - this is expected for guests')
+            return false
+          }
+          
+          // 403 is also expected for unauthorized access - log as info
+          if (status === 403) {
+            console.log('Session access forbidden (403) - this is expected for guests')
+            return false
+          }
+          
+          // Other client errors (4xx) are warnings
+          if (status >= 400 && status < 500) {
+            console.warn('Client error during session recovery:', status, error.response.data)
+            return false
+          }
+          
+          // Server errors (5xx) are actual errors we should know about
+          if (status >= 500) {
+            console.error('Server error during session recovery:', status)
+            console.error('Response data:', error.response.data)
+            console.error('Debug info:', error.response.data?.debug || 'No debug info available')
+            return false
+          }
+          
+          // Other status codes
+          console.warn('Unexpected status during session recovery:', status, error.response.data)
+          return false
+        } else if (error.request) {
+          console.error('No response received during session recovery:', error.request)
+          return false
+        } else {
+          console.error('Error setting up session recovery request:', error.message)
+          return false
+        }
+      }
+    },
+
+    // Handle security issues from the backend
+    handleSecurityIssues(securityIssues, currentFingerprint) {
+      if (!securityIssues) return
+      
+      // Check for fingerprint mismatch
+      if (securityIssues.fingerprint_mismatch) {
+        console.warn('Fingerprint mismatch detected by the server')
+        
+        // Get the session store to add an alert
+        try {
+          const sessionStore = sessionService.getStore()
+          sessionStore.securityAlerts.push({
+            id: Date.now(),
+            type: 'fingerprint_mismatch',
+            message: 'Your account is being accessed from a different device or browser. If this wasn\'t you, please change your password immediately.',
+            timestamp: new Date().toISOString(),
+            details: securityIssues.fingerprint_details || {},
+            acknowledged: false,
+            severity: 'error'
+          })
+          
+          // Trigger event for immediate notification
+          window.dispatchEvent(new CustomEvent('security-alert', {
+            detail: {
+              type: 'fingerprint_mismatch',
+              message: 'Unusual device activity detected on your account'
+            }
+          }))
+        } catch (e) {
+          console.error('Failed to add security alert for fingerprint mismatch:', e)
+        }
+      }
+      
+      // Check for IP change
+      if (securityIssues.ip_change) {
+        console.warn('IP address change detected by the server')
+        
+        // Get the session store to add an alert
+        try {
+          const sessionStore = sessionService.getStore()
+          sessionStore.securityAlerts.push({
+            id: Date.now(),
+            type: 'ip_change',
+            message: 'Your account is being accessed from a new location. If this wasn\'t you, please change your password immediately.',
+            timestamp: new Date().toISOString(),
+            details: securityIssues.ip_details || {},
+            acknowledged: false,
+            severity: 'warning'
+          })
+          
+          // Trigger event for immediate notification
+          window.dispatchEvent(new CustomEvent('security-alert', {
+            detail: {
+              type: 'ip_change',
+              message: 'New login location detected'
+            }
+          }))
+        } catch (e) {
+          console.error('Failed to add security alert for IP change:', e)
+        }
+      }
+      
+      // Check for suspicious activity
+      if (securityIssues.suspicious_activity) {
+        console.warn('Suspicious activity detected by the server')
+        
+        // Get the session store to add an alert
+        try {
+          const sessionStore = sessionService.getStore()
+          sessionStore.securityAlerts.push({
+            id: Date.now(),
+            type: 'suspicious_activity',
+            message: securityIssues.suspicious_activity.message || 'Suspicious activity has been detected on your account.',
+            timestamp: new Date().toISOString(),
+            details: securityIssues.suspicious_activity || {},
+            acknowledged: false,
+            severity: 'error'
+          })
+          
+          // Trigger event for immediate notification
+          window.dispatchEvent(new CustomEvent('security-alert', {
+            detail: {
+              type: 'suspicious_activity',
+              message: 'Suspicious account activity detected'
+            }
+          }))
+        } catch (e) {
+          console.error('Failed to add security alert for suspicious activity:', e)
+        }
       }
     },
   }

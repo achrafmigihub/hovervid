@@ -19,16 +19,12 @@ const fullName = ref('')
 const email = ref('')
 const password = ref('')
 const role = ref('client')
-const status = ref('active')
+// Status is fixed to inactive until first login
+const status = ref('inactive')
 
 const roles = [
   { title: 'Admin', value: 'admin' },
   { title: 'Client', value: 'client' },
-]
-
-const statuses = [
-  { title: 'Active', value: 'active' },
-  { title: 'Inactive', value: 'inactive' },
 ]
 
 // 👉 drawer close
@@ -49,7 +45,7 @@ const onSubmit = () => {
         email: email.value,
         password: password.value || undefined,
         role: role.value,
-        status: status.value,
+        status: status.value, // Always sends 'inactive' as the status for new users
       })
       emit('update:isDrawerOpen', false)
       nextTick(() => {
@@ -132,17 +128,6 @@ const handleDrawerModelValueUpdate = val => {
                   placeholder="Select Role"
                   :rules="[requiredValidator]"
                   :items="roles"
-                />
-              </VCol>
-
-              <!-- 👉 Status -->
-              <VCol cols="12">
-                <AppSelect
-                  v-model="status"
-                  label="Select Status"
-                  placeholder="Select Status"
-                  :rules="[requiredValidator]"
-                  :items="statuses"
                 />
               </VCol>
 

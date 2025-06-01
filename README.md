@@ -1,35 +1,80 @@
-# vue
+# Hovervid WordPress Plugin
 
-This template should help get you started developing with Vue 3 in Vite.
+A powerful WordPress plugin for managing video content with domain-based licensing and real-time verification.
 
-## Recommended IDE Setup
+## Features
 
-[VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=johnsoncodehk.volar) (and disable Vetur).
+- Domain-based licensing system
+- Real-time domain verification
+- Video player integration
+- Text processing capabilities
+- Session management
+- User authentication
+- Admin dashboard
+- API endpoints for plugin management
 
-## Type Support for `.vue` Imports in TS
+## Requirements
 
-Since TypeScript cannot handle type information for `.vue` imports, they are shimmed to be a generic Vue component type by default. In most cases this is fine if you don't really care about component prop types outside of templates.
+- WordPress 5.0 or higher
+- PHP 7.4 or higher
+- PostgreSQL database
+- Modern web browser with JavaScript enabled
 
-However, if you wish to get actual prop types in `.vue` imports (for example to get props validation when using manual `h(...)` calls), you can run `Volar: Switch TS Plugin on/off` from VS Code command palette.
+## Installation
 
-## Customize configuration
+1. Download the plugin zip file
+2. Go to WordPress admin panel > Plugins > Add New
+3. Click "Upload Plugin" and select the downloaded zip file
+4. Activate the plugin
+5. Configure the plugin settings in the admin dashboard
 
-See [Vite Configuration Reference](https://vitejs.dev/config/).
+## Configuration
 
-## Project Setup
+1. Set up your PostgreSQL database
+2. Configure the plugin settings in WordPress admin
+3. Add your domain for verification
+4. Set up API keys and endpoints
 
-```sh
-npm install
+## Development
+
+### Local Development
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   composer install
+   npm install
+   ```
+3. Set up your environment variables
+4. Run migrations:
+   ```bash
+   php artisan migrate
+   ```
+5. Start the development server:
+   ```bash
+   php artisan serve
+   npm run dev
+   ```
+
+### Testing
+
+Run the test suite:
+```bash
+php artisan test
 ```
 
-### Compile and Hot-Reload for Development
+## Contributing
 
-```sh
-npm run dev
-```
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-### Type-Check, Compile and Minify for Production
+## License
 
-```sh
-npm run build
-```
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support, please open an issue in the GitHub repository or contact the development team.

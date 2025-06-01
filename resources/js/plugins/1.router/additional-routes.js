@@ -57,6 +57,18 @@ export const routes = [
     },
   },
   
+  // Domain Management Route
+  {
+    path: '/admin/domain-management',
+    name: 'admin-domain-management',
+    component: defineAsyncRouteComponent(() => import('@/pages/admin/domain-management.vue')),
+    meta: {
+      requiresAuth: true,
+      requiredRole: 'admin',
+      layoutWrapperClasses: 'layout-content-height-fixed',
+    },
+  },
+  
   // Admin User Management Routes - Explicitly for admin role only
   {
     path: '/admin/users',
@@ -123,7 +135,21 @@ export const routes = [
   {
     path: '/client/dashboard',
     name: 'client-dashboard',
-    component: defineAsyncRouteComponent(() => import('@/pages/access-control.vue')),
+    component: defineAsyncRouteComponent(() => import('@/pages/client/dashboard.vue')),
+    meta: {
+      requiresAuth: true,
+      requiredRole: 'client',
+      action: 'read',
+      subject: 'ClientPages',
+      layoutWrapperClasses: 'layout-content-height-fixed',
+    },
+  },
+  
+  // Client Contents Page
+  {
+    path: '/apps/contents',
+    name: 'apps-contents',
+    component: defineAsyncRouteComponent(() => import('@/pages/apps/contents.vue')),
     meta: {
       requiresAuth: true,
       requiredRole: 'client',
@@ -188,6 +214,18 @@ export const routes = [
     component: defineAsyncRouteComponent(() => import('@/pages/[...error].vue')),
     meta: {
       public: true,
+    },
+  },
+  
+  // Sessions Management - accessible to authenticated users
+  {
+    path: '/account/sessions',
+    name: 'account-sessions',
+    component: defineAsyncRouteComponent(() => import('@/views/account/SessionsManagement.vue')),
+    meta: {
+      requiresAuth: true,
+      title: 'Manage Sessions',
+      contentClass: 'account-settings-tab',
     },
   },
 ]

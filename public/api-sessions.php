@@ -41,6 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmt->execute();
         $activeSessions = $stmt->fetchColumn();
         
+        // Get count of active users from users table status column
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE LOWER(status) = 'active'");
+        $stmt->execute();
+        $activeUsers = $stmt->fetchColumn();
+        
         // Recent sessions in last 24 hours
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM sessions WHERE last_activity >= ?");
         $stmt->execute([$yesterday]);
@@ -145,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'success' => true,
             'total_sessions' => (int)$totalSessions,
             'total_active_sessions' => (int)$activeSessions,
+            'active_users' => (int)$activeUsers,
             'sessions_last_24_hours' => (int)$recentSessions,
             'guest_sessions' => (int)$guestSessions,
             'sessions_by_role' => $sessionsByRole,

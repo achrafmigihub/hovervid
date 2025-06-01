@@ -36,17 +36,21 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
+            \App\Http\Middleware\SessionManager::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\UpdateUserStatus::class,
         ],
 
         'api' => [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\LogRequests::class,
             \App\Http\Middleware\ForceJsonResponse::class,
             \App\Http\Middleware\FormatJsonResponse::class,
+            \App\Http\Middleware\UpdateUserStatus::class,
         ],
     ];
 
@@ -72,5 +76,8 @@ class Kernel extends HttpKernel
         'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
         'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
         'session.config' => \App\Http\Middleware\SessionConfig::class,
+        'session.manager' => \App\Http\Middleware\SessionManager::class,
+        'user.status' => \App\Http\Middleware\UpdateUserStatus::class,
+        'nocache' => \App\Http\Middleware\NoCacheMiddleware::class,
     ];
 } 

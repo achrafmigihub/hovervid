@@ -13,6 +13,11 @@ export default [
         icon: { icon: 'bx-cog' },
         to: { name: 'pages-account-settings-tab', params: { tab: 'account' } },
       },
+      {
+        title: 'Session Management',
+        icon: { icon: 'bx-devices' },
+        to: { name: 'account-sessions' },
+      },
       { title: 'FAQ', icon: { icon: 'bx-help-circle' }, to: 'pages-faq' },
       { title: 'Pricing', icon: { icon: 'bx-diamond' }, to: 'pages-pricing' },
       {

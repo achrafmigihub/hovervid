@@ -1,4 +1,4 @@
-import { useAbility } from '@casl/vue'
+import { ability } from '@/plugins/casl/ability'
 
 /**
  * Returns ability result if ACL is configured or else just return true
@@ -11,12 +11,8 @@ import { useAbility } from '@casl/vue'
  * @param {string} subject CASL Subject // https://casl.js.org/v4/en/guide/intro#basics
  */
 export const can = (action, subject) => {
-  const vm = getCurrentInstance()
-  if (!vm)
-    return false
-  const localCan = vm.proxy && '$can' in vm.proxy
-    
-  return localCan ? vm.proxy?.$can(action, subject) : true
+  // Use our local ability instance directly
+  return ability.can(action, subject)
 }
 
 /**
@@ -47,16 +43,27 @@ export const canViewNavMenuGroup = item => {
 }
 
 export const canNavigate = to => {
-  const ability = useAbility()
+  // Use our local ability instance instead of useAbility()
+  console.log('CASL canNavigate check for:', to.path, 'Current abilities:', ability.rules)
 
   // Get the most specific route (last one in the matched array)
   const targetRoute = to.matched[to.matched.length - 1]
 
   // If the target route has specific permissions, check those first
-  if (targetRoute?.meta?.action && targetRoute?.meta?.subject)
-    return ability.can(targetRoute.meta.action, targetRoute.meta.subject)
+  if (targetRoute?.meta?.action && targetRoute?.meta?.subject) {
+    const canAccess = ability.can(targetRoute.meta.action, targetRoute.meta.subject)
+    console.log(`CASL check: ${targetRoute.meta.action} ${targetRoute.meta.subject} = ${canAccess}`)
+    return canAccess
+  }
 
   // If no specific permissions, fall back to checking if any parent route allows access
-    
-  return to.matched.some(route => ability.can(route.meta.action, route.meta.subject))
+  const hasAccess = to.matched.some(route => {
+    if (route.meta.action && route.meta.subject) {
+      return ability.can(route.meta.action, route.meta.subject)
+    }
+    return true // If no specific permissions required, allow access
+  })
+  
+  console.log('CASL fallback check result:', hasAccess)
+  return hasAccess
 }

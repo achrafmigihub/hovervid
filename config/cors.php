@@ -38,6 +38,11 @@ return [
         'http://127.0.0.1:8000',    // Alternative Laravel URL
         'http://localhost:8001',    // Additional dev server
         'http://127.0.0.1:8001',    // Additional dev server alternative URL
+        // WordPress plugin domains
+        'http://sign-language-video-plugin.local',  // WordPress plugin domain
+        'https://sign-language-video-plugin.local', // WordPress plugin domain (HTTPS)
+        'http://localhost',         // WordPress localhost
+        'https://localhost',        // WordPress localhost (HTTPS)
     ],
 
     /*

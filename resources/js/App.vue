@@ -1,13 +1,17 @@
 <script setup>
-import { useTheme } from 'vuetify'
+import AppErrorNotification from '@/components/AppErrorNotification.vue'
+import SessionSecurityAlert from '@/components/SessionSecurityAlert.vue'
+import SessionTimeoutWarning from '@/components/SessionTimeoutWarning.vue'
+import sessionService from '@/services/sessionService'
 import ScrollToTop from '@core/components/ScrollToTop.vue'
 import initCore from '@core/initCore'
 import {
-  initConfigStore,
-  useConfigStore,
+    initConfigStore,
+    useConfigStore,
 } from '@core/stores/config'
 import { hexToRgb } from '@core/utils/colorConverter'
-import AppErrorNotification from '@/components/AppErrorNotification.vue'
+import { onMounted } from 'vue'
+import { useTheme } from 'vuetify'
 
 const { global } = useTheme()
 
@@ -16,6 +20,15 @@ initCore()
 initConfigStore()
 
 const configStore = useConfigStore()
+
+// Initialize session service
+onMounted(() => {
+  try {
+    sessionService.init()
+  } catch (error) {
+    console.error('Failed to initialize session service:', error)
+  }
+})
 </script>
 
 <template>
@@ -25,6 +38,8 @@ const configStore = useConfigStore()
       <RouterView />
       <ScrollToTop />
       <AppErrorNotification />
+      <SessionTimeoutWarning />
+      <SessionSecurityAlert />
     </VApp>
   </VLocaleProvider>
 </template>

@@ -3,6 +3,7 @@ import navItems from '@/navigation/horizontal'
 import { themeConfig } from '@themeConfig'
 
 // Components
+import SuspendedUserModal from '@/components/SuspendedUserModal.vue'
 import Footer from '@/layouts/components/Footer.vue'
 import NavBarNotifications from '@/layouts/components/NavBarNotifications.vue'
 import NavSearchBar from '@/layouts/components/NavSearchBar.vue'
@@ -53,6 +54,9 @@ import { VNodeRenderer } from '@layouts/components/VNodeRenderer'
 
     <!-- 👉 Customizer -->
     <TheCustomizer />
+    
+    <!-- 👉 Suspended User Modal -->
+    <SuspendedUserModal />
   </HorizontalNavLayout>
 </template>
 

@@ -1,5 +1,4 @@
 <script setup>
-import UserInvoiceTable from './UserInvoiceTable.vue'
 import avatar1 from '@images/avatars/avatar-1.png'
 import avatar2 from '@images/avatars/avatar-2.png'
 import avatar3 from '@images/avatars/avatar-3.png'
@@ -16,6 +15,7 @@ import react from '@images/icons/project-icons/react.png'
 import sketch from '@images/icons/project-icons/sketch.png'
 import vue from '@images/icons/project-icons/vue.png'
 import xamarin from '@images/icons/project-icons/xamarin.png'
+import UserInvoiceTable from './UserInvoiceTable.vue'
 
 const projectTableHeaders = [
   {

@@ -1,6 +1,6 @@
 <script setup>
-import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 
 const router = useRouter()
 const ability = useAbility()
@@ -8,6 +8,9 @@ const authStore = useAuthStore()
 
 // Get user data from auth store instead of cookies
 const userData = computed(() => authStore.user)
+
+// Computed property to get the user ID safely
+const userId = computed(() => userData.value?.id || '21')
 
 const logout = async () => {
   try {
@@ -35,7 +38,7 @@ const userProfileList = [
     title: 'Profile',
     to: {
       name: 'apps-user-view-id',
-      params: { id: 21 },
+      params: { id: userId },
     },
   },
   {

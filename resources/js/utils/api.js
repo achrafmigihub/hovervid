@@ -1,6 +1,5 @@
-import { ofetch } from 'ofetch'
 import axios from 'axios'
-import { apiCall } from './errorHandler' // Import apiCall from errorHandler
+import { ofetch } from 'ofetch'
 
 // Configure axios defaults
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
@@ -44,6 +43,3 @@ export const $api = ofetch.create({
     }
   },
 })
-
-// Re-export apiCall from errorHandler
-export { apiCall }

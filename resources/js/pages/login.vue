@@ -1,14 +1,15 @@
 <!-- ❗Errors in the form are set on line 60 -->
 <script setup>
-import { VForm } from 'vuetify/components/VForm'
+import AppErrorAlert from '@/components/AppErrorAlert.vue'
+import { ability } from '@/plugins/casl/ability'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { checkServiceWorkerAuth } from '@/utils/service-worker-setup'
 import AuthProvider from '@/views/pages/authentication/AuthProvider.vue'
 import authV2LoginIllustration from '@images/pages/auth-v2-login-illustration.png'
 import { VNodeRenderer } from '@layouts/components/VNodeRenderer'
 import { themeConfig } from '@themeConfig'
-import { useAuthStore } from '@/stores/useAuthStore'
-import AppErrorAlert from '@/components/AppErrorAlert.vue'
-import { checkServiceWorkerAuth } from '@/utils/service-worker-setup'
 import { onMounted } from 'vue'
+import { VForm } from 'vuetify/components/VForm'
 
 definePage({
   meta: {
@@ -43,6 +44,47 @@ const validationErrors = ref({})
 
 const rememberMe = ref(true) // Default to true for better UX with persistent login
 
+// Function to initialize CASL abilities based on user role
+const initializeAbilities = () => {
+  if (!authStore.user) return
+  
+  // Clear existing abilities
+  ability.update([])
+  
+  const role = authStore.user.role
+  
+  // Set up basic abilities for all users
+  const abilities = [
+    { action: 'read', subject: 'Auth' },
+  ]
+  
+  // Add admin-specific abilities
+  if (role === 'admin') {
+    abilities.push(
+      { action: 'read', subject: 'AclDemo' },
+      { action: 'read', subject: 'all' },
+      { action: 'manage', subject: 'all' }
+    )
+  }
+  
+  // Add client-specific abilities
+  if (role === 'client') {
+    abilities.push(
+      { action: 'read', subject: 'AclDemo' },
+      { action: 'read', subject: 'ClientPages' }
+    )
+  }
+  
+  // Update CASL ability instance
+  ability.update(abilities)
+  
+  // Save to cookie for persistence
+  const abilityStringified = JSON.stringify(abilities)
+  document.cookie = `userAbilityRules=${encodeURIComponent(abilityStringified)}; path=/; max-age=86400`
+  
+  console.log('CASL abilities initialized for role:', role)
+}
+
 // Check service worker authentication on component mount
 onMounted(async () => {
   try {
@@ -57,6 +99,7 @@ onMounted(async () => {
       
       // If restoration was successful, redirect to appropriate dashboard
       if (authStore.isAuthenticated) {
+        initializeAbilities() // Initialize CASL abilities
         handleSuccessfulLogin()
       }
     }
@@ -100,11 +143,20 @@ const login = async () => {
       remember: rememberMe.value
     })
     
+    // Initialize CASL abilities after login
+    initializeAbilities()
+    
     handleSuccessfulLogin()
   } catch (error) {
     // Convert technical errors to user-friendly messages
     if (error.isValidationError && error.validationErrors) {
       validationErrors.value = error.validationErrors
+    } else if (error.response?.status === 403 && error.response?.data?.message?.includes('suspended')) {
+      // Handle account suspension with appropriate message
+      authStore.error = {
+        message: 'Your account has been suspended. Please contact administration for assistance.',
+        stack: null
+      }
     } else if (error.response?.status === 401) {
       // Handle authentication failure with clear message
       authStore.error = {

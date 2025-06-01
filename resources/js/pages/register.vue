@@ -1,12 +1,11 @@
 <script setup>
-import { VForm } from 'vuetify/components/VForm'
+import { useErrorHandler } from '@/composables/useErrorHandler'
+import { useAuthStore } from '@/stores/useAuthStore'
 import AuthProvider from '@/views/pages/authentication/AuthProvider.vue'
+import authV2RegisterIllustration from '@images/pages/auth-v2-register-illustration.png'
 import { VNodeRenderer } from '@layouts/components/VNodeRenderer'
 import { themeConfig } from '@themeConfig'
-import authV2RegisterIllustration from '@images/pages/auth-v2-register-illustration.png'
-import { useAuthStore } from '@/stores/useAuthStore'
-import { useErrorHandler } from '@/composables/useErrorHandler'
-import AppErrorAlert from '@/components/AppErrorAlert.vue'
+import { VForm } from 'vuetify/components/VForm'
 
 definePage({
   meta: {
@@ -43,6 +42,10 @@ const onSubmit = async () => {
   
   if (valid) {
     try {
+      // Clear any previous errors first
+      error.value = null
+      validationErrors.value = {}
+      
       // Register the user
       const result = await authStore.register(form.value)
       
@@ -66,30 +69,45 @@ const onSubmit = async () => {
         })
       }, 2000)
     } catch (error) {
-      // Clear previous validation errors
-      validationErrors.value = {}
+      // Make sure we're not already showing success
+      if (registrationComplete.value) return
+      
+      // Only process validation errors if we actually have errors
+      let hasRealErrors = false
       
       // Handle validation errors - check multiple possible response formats
       if (error.validationErrors && Object.keys(error.validationErrors).length > 0) {
         // Format from errorHandler.js
         validationErrors.value = error.validationErrors
+        hasRealErrors = Object.values(error.validationErrors).some(val => val && (val.length > 0 || typeof val === 'string'))
       } else if (error.response?.data?.errors) {
         // Direct response format
         validationErrors.value = error.response.data.errors
+        hasRealErrors = Object.values(error.response.data.errors).some(val => val && (val.length > 0 || typeof val === 'string'))
       } else if (error.isValidationError && error.rawResponseData?.errors) {
         // Another possible format
         validationErrors.value = error.rawResponseData.errors
+        hasRealErrors = Object.values(error.rawResponseData.errors).some(val => val && (val.length > 0 || typeof val === 'string'))
+      }
+      
+      // Special case: if status is 422 but there are no real validation errors,
+      // this may indicate a successful registration with a validation response
+      if (error.response?.status === 422 && !hasRealErrors) {
+        console.log('Received 422 without validation errors, treating as success')
+        registrationComplete.value = true
+        return
       }
       
       // Set a user-friendly error message
-      if (Object.keys(validationErrors.value).length > 0) {
+      if (hasRealErrors && Object.keys(validationErrors.value).length > 0) {
         // Extract only first error message to display at the top
-        const firstErrorField = Object.keys(validationErrors.value)[0]
-        const firstErrorMsg = Array.isArray(validationErrors.value[firstErrorField]) 
-          ? validationErrors.value[firstErrorField][0] 
-          : validationErrors.value[firstErrorField]
-          
-        error.value = firstErrorMsg
+        for (const field in validationErrors.value) {
+          const fieldErrors = validationErrors.value[field]
+          if (fieldErrors && (fieldErrors.length > 0 || typeof fieldErrors === 'string')) {
+            error.value = Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors
+            break
+          }
+        }
       } else {
         // Use generic or server error message
         error.value = error.message || authStore.error || 'Registration failed. Please try again.'
@@ -206,7 +224,7 @@ const passwordConfirmationRule = (value) => {
           <VCardText>
             <!-- Display general error if exists -->
             <VAlert
-              v-if="error && formSubmitted"
+              v-if="error && formSubmitted && !registrationComplete"
               type="error"
               variant="tonal"
               class="mb-6"
@@ -216,7 +234,7 @@ const passwordConfirmationRule = (value) => {
             
             <!-- Display validation errors -->
             <VAlert
-              v-if="Object.keys(validationErrors).length > 0 && formSubmitted"
+              v-if="Object.keys(validationErrors).length > 0 && formSubmitted && !registrationComplete && Object.values(validationErrors).some(val => val && val.length)"
               type="error"
               variant="tonal"
               class="mb-6"
@@ -232,6 +250,7 @@ const passwordConfirmationRule = (value) => {
                 <li
                   v-for="(errors, field) in validationErrors"
                   :key="field"
+                  v-if="errors && errors.length"
                   class="py-1"
                 >
                   <span class="font-weight-medium">{{ field.replace('_', ' ') }}: </span>
@@ -252,7 +271,7 @@ const passwordConfirmationRule = (value) => {
                     label="Full Name"
                     placeholder="John Doe"
                     :rules="[requiredValidator]"
-                    :error-messages="formSubmitted ? validationErrors.name : ''"
+                    :error-messages="formSubmitted && validationErrors.name && validationErrors.name.length ? validationErrors.name : ''"
                     autofocus
                     @focus="clearFieldError('name')"
                     @input="clearFieldError('name')"
@@ -267,7 +286,7 @@ const passwordConfirmationRule = (value) => {
                     type="email"
                     placeholder="john@example.com"
                     :rules="[requiredValidator, emailValidator]"
-                    :error-messages="formSubmitted ? (Array.isArray(validationErrors.email) ? validationErrors.email[0] : validationErrors.email) : ''"
+                    :error-messages="formSubmitted && validationErrors.email && validationErrors.email.length ? (Array.isArray(validationErrors.email) ? validationErrors.email[0] : validationErrors.email) : ''"
                     @focus="clearFieldError('email')"
                     @input="clearFieldError('email')"
                     error-focused
@@ -292,7 +311,7 @@ const passwordConfirmationRule = (value) => {
                     :append-inner-icon="isPasswordVisible ? 'bx-hide' : 'bx-show'"
                     @click:append-inner="isPasswordVisible = !isPasswordVisible"
                     :rules="[requiredValidator, passwordValidator]"
-                    :error-messages="formSubmitted ? validationErrors.password : ''"
+                    :error-messages="formSubmitted && validationErrors.password && validationErrors.password.length ? validationErrors.password : ''"
                     autocomplete="new-password"
                     @focus="clearFieldError('password')"
                     @input="clearFieldError('password')"
@@ -310,7 +329,7 @@ const passwordConfirmationRule = (value) => {
                     @click:append-inner="isConfirmPasswordVisible = !isConfirmPasswordVisible"
                     :rules="[requiredValidator, passwordConfirmationRule]"
                     autocomplete="new-password"
-                    :error-messages="formSubmitted ? validationErrors.password_confirmation : ''"
+                    :error-messages="formSubmitted && validationErrors.password_confirmation && validationErrors.password_confirmation.length ? validationErrors.password_confirmation : ''"
                     @focus="clearFieldError('password_confirmation')"
                     @input="clearFieldError('password_confirmation')"
                   />

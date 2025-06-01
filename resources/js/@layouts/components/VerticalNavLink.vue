@@ -3,10 +3,10 @@ import { layoutConfig } from '@layouts'
 import { can } from '@layouts/plugins/casl'
 import { useLayoutConfigStore } from '@layouts/stores/config'
 import {
-  getComputedNavLinkToProp,
-  getDynamicI18nProps,
-  isNavLinkActive,
-  shouldShowNavItem
+    getComputedNavLinkToProp,
+    getDynamicI18nProps,
+    isNavLinkActive,
+    shouldShowNavItem
 } from '@layouts/utils'
 
 const props = defineProps({

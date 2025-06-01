@@ -1,8 +1,100 @@
 <script setup>
+import axios from 'axios'
+import { ref } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const userId = ref(route.params.id)
+
 const isNewPasswordVisible = ref(false)
 const isConfirmPasswordVisible = ref(false)
 const smsVerificationNumber = ref('+1(968) 819-2547')
 const isTwoFactorDialogOpen = ref(false)
+
+// Form data
+const formData = ref({
+  password: '',
+  password_confirmation: ''
+})
+
+// Form state
+const isSubmitting = ref(false)
+const formErrors = ref({})
+const successMessage = ref('')
+const errorMessage = ref('')
+const showAlert = ref(false)
+const alertType = ref('success')
+
+// Change user password
+const changePassword = async () => {
+  try {
+    // Reset states
+    isSubmitting.value = true
+    formErrors.value = {}
+    errorMessage.value = ''
+    successMessage.value = ''
+    showAlert.value = false
+    
+    let response
+    let usedFallback = false
+    
+    try {
+      // First try the API endpoint
+      response = await axios.post(`/api/users/${userId.value}/change-password`, formData.value, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        }
+      })
+    } catch (apiError) {
+      console.warn('API endpoint failed, using direct PHP script as fallback', apiError)
+      
+      // If API fails, try the direct PHP script
+      response = await axios.post(`/direct-change-password.php?id=${userId.value}`, formData.value, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        }
+      })
+      usedFallback = true
+    }
+    
+    console.log(`Password change response (${usedFallback ? 'fallback' : 'API'}):`, response.data)
+    
+    // Handle success
+    if (response.data.success) {
+      successMessage.value = response.data.message || 'Password changed successfully'
+      alertType.value = 'success'
+      showAlert.value = true
+      
+      // Reset form
+      formData.value.password = ''
+      formData.value.password_confirmation = ''
+    } else {
+      // Handle unexpected response structure
+      throw new Error(response.data.message || 'An error occurred')
+    }
+  } catch (error) {
+    console.error('Password change error:', error)
+    
+    // Handle validation errors
+    if (error.response && error.response.status === 422) {
+      formErrors.value = error.response.data.errors || {}
+      alertType.value = 'error'
+      errorMessage.value = 'Please correct the errors below'
+      showAlert.value = true
+    } else {
+      // Handle other errors
+      alertType.value = 'error'
+      errorMessage.value = error.response?.data?.message || error.message || 'Failed to change password'
+      showAlert.value = true
+    }
+  } finally {
+    isSubmitting.value = false
+  }
+}
 
 const recentDeviceHeader = [
   {
@@ -66,6 +158,22 @@ const recentDevices = [
       <VCard title="Change Password">
         <VCardText>
           <VAlert
+            v-if="showAlert"
+            :type="alertType"
+            variant="tonal"
+            closable
+            class="mb-4"
+            @click:close="showAlert = false"
+          >
+            <template v-if="alertType === 'success'">
+              {{ successMessage }}
+            </template>
+            <template v-else>
+              {{ errorMessage }}
+            </template>
+          </VAlert>
+
+          <VAlert
             closable
             variant="tonal"
             color="warning"
@@ -74,17 +182,19 @@ const recentDevices = [
             text="Minimum 8 characters long, uppercase & symbol"
           />
 
-          <VForm @submit.prevent="() => { }">
+          <VForm @submit.prevent="changePassword">
             <VRow>
               <VCol
                 cols="12"
                 md="6"
               >
                 <AppTextField
+                  v-model="formData.password"
                   label="New Password"
                   placeholder="············"
                   :type="isNewPasswordVisible ? 'text' : 'password'"
                   :append-inner-icon="isNewPasswordVisible ? 'bx-hide' : 'bx-show'"
+                  :error-messages="formErrors.password"
                   @click:append-inner="isNewPasswordVisible = !isNewPasswordVisible"
                 />
               </VCol>
@@ -93,11 +203,13 @@ const recentDevices = [
                 md="6"
               >
                 <AppTextField
+                  v-model="formData.password_confirmation"
                   label="Confirm Password"
-                  autocomplete="confirm-password"
+                  autocomplete="new-password"
                   placeholder="············"
                   :type="isConfirmPasswordVisible ? 'text' : 'password'"
                   :append-inner-icon="isConfirmPasswordVisible ? 'bx-hide' : 'bx-show'"
+                  :error-messages="formErrors.password_confirmation"
                   @click:append-inner="isConfirmPasswordVisible = !isConfirmPasswordVisible"
                 />
               </VCol>
@@ -106,6 +218,8 @@ const recentDevices = [
             <VBtn
               type="submit"
               class="mt-4"
+              :loading="isSubmitting"
+              :disabled="isSubmitting"
             >
               Change Password
             </VBtn>

@@ -2,28 +2,19 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
-use App\Enums\UserRoleEnum;
-use App\Enums\UserStatusEnum;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Tymon\JWTAuth\Contracts\JWTSubject;
 
-/**
- * @method \Laravel\Sanctum\NewAccessToken createToken(string $name, array $abilities = ['*'])
- */
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements JWTSubject
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $fillable = [
         'name',
@@ -31,99 +22,34 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'status',
+        'domain_id',
     ];
 
     /**
      * The attributes that should be hidden for serialization.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $hidden = [
         'password',
+        'remember_token',
     ];
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        'password' => 'hashed',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'role' => UserRoleEnum::class,
-        'status' => UserStatusEnum::class,
-    ];
-
-    /**
-     * The default attribute values
-     * 
-     * @var array
-     */
-    protected $attributes = [
-        'status' => 'active',
-        'role' => 'client',
-    ];
-
-    /**
-     * Scope a query to only include admin users.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeAdmin(Builder $query): Builder
+    protected function casts(): array
     {
-        return $query->where('role', UserRoleEnum::ADMIN->value);
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
     }
 
     /**
-     * Scope a query to only include active users.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeActive(Builder $query): Builder
-    {
-        return $query->where('status', UserStatusEnum::ACTIVE->value);
-    }
-
-    /**
-     * Scope a query to search users by name or email.
-     *
-     * @param  \Illuminate\Database\Eloquent\Builder  $query
-     * @param  string|null  $search
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeSearch(Builder $query, ?string $search = ''): Builder
-    {
-        if (empty($search)) {
-            return $query;
-        }
-
-        return $query->where(function($query) use ($search) {
-            $query->where('name', 'ILIKE', "%{$search}%")
-                  ->orWhere('email', 'ILIKE', "%{$search}%");
-        });
-    }
-
-    /**
-     * Get the sessions for the user.
-     */
-    public function sessions()
-    {
-        return $this->hasMany(Session::class);
-    }
-
-    /**
-     * Get the licenses for the user.
-     */
-    public function licenses()
-    {
-        return $this->hasMany(License::class);
-    }
-
-    /**
-     * Get the domains for the user.
+     * Get the domains that belong to the user.
      */
     public function domains()
     {
@@ -131,51 +57,30 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Get the subscriptions for the user.
+     * Get the user's primary domain.
      */
-    public function subscriptions()
+    public function domain()
     {
-        return $this->hasMany(Subscription::class);
+        return $this->belongsTo(Domain::class);
     }
 
     /**
-     * Get the payments for the user.
+     * Get the identifier that will be stored in the subject claim of the JWT.
+     *
+     * @return mixed
      */
-    public function payments()
+    public function getJWTIdentifier()
     {
-        return $this->hasMany(Payment::class);
+        return $this->getKey();
     }
-    
+
     /**
-     * Validation rules for creating a user
-     * 
+     * Return a key value array, containing any custom claims to be added to the JWT.
+     *
      * @return array
      */
-    public static function createRules(): array
+    public function getJWTCustomClaims()
     {
-        return [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'role' => 'sometimes|string|in:' . implode(',', UserRoleEnum::values()),
-            'status' => 'sometimes|string|in:' . implode(',', UserStatusEnum::values()),
-        ];
+        return [];
     }
-    
-    /**
-     * Validation rules for updating a user
-     * 
-     * @param int $userId
-     * @return array
-     */
-    public static function updateRules(int $userId): array
-    {
-        return [
-            'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $userId,
-            'password' => 'sometimes|string|min:8|confirmed',
-            'role' => 'sometimes|string|in:' . implode(',', UserRoleEnum::values()),
-            'status' => 'sometimes|string|in:' . implode(',', UserStatusEnum::values()),
-        ];
-    }
-}
+} 

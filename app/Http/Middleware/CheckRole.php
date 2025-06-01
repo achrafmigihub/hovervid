@@ -18,19 +18,27 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, string $role): mixed
     {
+        // Get user role - handle both string and enum values
+        $userRole = null;
+        if ($request->user()) {
+            $userRole = is_object($request->user()->role) 
+                ? $request->user()->role->value 
+                : $request->user()->role;
+        }
+
         // Log role check attempt
         \Illuminate\Support\Facades\Log::info('Role check attempt', [
             'required_role' => $role,
-            'user_role' => $request->user() ? $request->user()->role : null,
+            'user_role' => $userRole,
             'user_id' => $request->user() ? $request->user()->id : null,
             'path' => $request->path(),
             'method' => $request->method()
         ]);
 
-        if (!$request->user() || $request->user()->role !== $role) {
+        if (!$request->user() || $userRole !== $role) {
             return response()->json([
                 'error' => 'Unauthorized - Required role: ' . $role,
-                'user_role' => $request->user() ? $request->user()->role : null
+                'user_role' => $userRole
             ], 403);
         }
 

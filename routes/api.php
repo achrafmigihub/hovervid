@@ -5,6 +5,14 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Http\Controllers\API\UserProfileController;
+use App\Http\Controllers\API\UserSessionController;
+use App\Http\Controllers\API\DomainApiController;
+use App\Http\Controllers\API\ClientController;
+use App\Http\Controllers\API\DomainController;
+use App\Http\Controllers\API\ClientDomainController;
+use App\Http\Controllers\API\PluginDomainController;
+use App\Http\Controllers\API\PluginStatusController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,6 +24,23 @@ use Illuminate\Support\Facades\Schema;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+
+// Plugin Domain Validation Routes (Public - No Authentication Required)
+// These are the main routes the HoverVid plugin will use for domain validation
+Route::prefix('plugin')->group(function () {
+    // Core domain validation endpoint - this is what the plugin calls during activation
+    Route::post('/validate-domain', [PluginDomainController::class, 'checkDomainAuthorization']);
+    
+    // Plugin status tracking routes
+    Route::post('/status/update', [PluginStatusController::class, 'updateStatus']);
+    Route::get('/status', [PluginStatusController::class, 'getStatus']);
+    Route::post('/status/activate', [PluginStatusController::class, 'activate']);
+    Route::post('/status/deactivate', [PluginStatusController::class, 'deactivate']);
+    Route::get('/status/history', [PluginStatusController::class, 'getHistory']);
+    
+    // Health check
+    Route::get('/health', [PluginDomainController::class, 'healthCheck']);
+});
 
 // Public auth routes
 Route::group(['prefix' => 'auth', 'middleware' => ['web', \App\Http\Middleware\SessionConfig::class]], function () {
@@ -33,7 +58,7 @@ Route::group(['middleware' => ['web', 'auth:sanctum', \App\Http\Middleware\Sessi
 
 // Special session-only route for user profile (without token requirement)
 Route::group(['middleware' => ['web', \App\Http\Middleware\SessionConfig::class], 'prefix' => 'auth'], function () {
-    Route::get('session-user', [AuthController::class, 'userProfile']);
+    Route::get('session-user', [AuthController::class, 'sessionUser']);
 });
 
 // Public User Management API routes (no authentication required)
@@ -72,27 +97,6 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/sessions/terminate-user', [\App\Http\Controllers\API\AdminSessionController::class, 'terminateUserSessions']);
 });
 
-// Client routes
-Route::middleware(['auth:sanctum', 'role:client'])->prefix('client')->group(function () {
-    Route::get('/dashboard', function () {
-        return response()->json([
-            'message' => 'Client dashboard accessed successfully',
-            'data' => [
-                'account' => [
-                    'status' => 'active',
-                    'planDetails' => 'Basic',
-                    'usageStats' => [
-                        'storage' => '25%',
-                        'bandwidth' => '18%'
-                    ]
-                ]
-            ]
-        ]);
-    });
-    
-    // Add more client-specific routes here
-});
-
 // Test route for API connectivity
 Route::get('/ping', function () {
     return response()->json([
@@ -103,167 +107,93 @@ Route::get('/ping', function () {
     ]);
 });
 
-// CORS test endpoint
-Route::get('/cors-test', function () {
-    return response()->json([
-        'status' => 'success',
-        'message' => 'CORS is properly configured!',
-        'timestamp' => now()->toIso8601String(),
-    ]);
-});
-
-// Simple test route
-Route::get('/test', function () {
-    return response()->json([
-        'message' => 'API test route working',
-        'timestamp' => now()->toIso8601String(),
-    ]);
-});
-
-// Simple auth test route
-Route::middleware('auth:sanctum')->get('/auth-test', function (Request $request) {
-    try {
-        $user = $request->user();
-        
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Authentication successful',
-            'user_id' => $user->id,
-            'user_email' => $user->email,
-            'user_role' => $user->role,
-            'session_id' => session()->getId()
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Authentication error',
-            'debug' => env('APP_DEBUG') ? $e->getMessage() : null
-        ], 500);
-    }
-});
-
-// Session debugging endpoint
-Route::get('/debug/sessions', function () {
-    try {
-        $sessionCount = DB::table('sessions')->count();
-        $sessionSample = DB::table('sessions')->limit(3)->get();
-        $sessionColumns = Schema::getColumnListing('sessions');
-        
-        return response()->json([
-            'status' => 'success',
-            'count' => $sessionCount,
-            'columns' => $sessionColumns,
-            'sample' => $sessionSample,
-            'timestamp' => now()->toIso8601String(),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'error',
-            'message' => $e->getMessage(),
-            'timestamp' => now()->toIso8601String(),
-        ], 500);
-    }
-});
-
-// Simple public test endpoint for sessions - NO MIDDLEWARE
-Route::get('/public-sessions-test', function () {
-    try {
-        // Direct database query without middleware or authentication
-        $totalSessions = DB::table('sessions')->count();
-        $activeSessions = DB::table('sessions')->where('is_active', true)->count();
-        $recentSessions = DB::table('sessions')
-            ->where('created_at', '>=', \Carbon\Carbon::now()->subDay())
-            ->count();
-            
-        // Check if sessions table has data
-        $sessionSample = null;
-        if ($totalSessions > 0) {
-            $sessionSample = DB::table('sessions')
-                ->select('id', 'user_id', 'ip_address', 'last_activity', 'is_active', 'created_at')
-                ->limit(1)
-                ->get();
-        }
-        
-        return response()->json([
-            'status' => 'success',
-            'total_sessions' => $totalSessions,
-            'total_active_sessions' => $activeSessions,
-            'sessions_last_24_hours' => $recentSessions,
-            'guest_sessions' => DB::table('sessions')->whereNull('user_id')->count(),
-            'sample' => $sessionSample,
-            'timestamp' => now()->toIso8601String(),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'error',
-            'message' => $e->getMessage(),
-            'total_sessions' => 0,
-            'total_active_sessions' => 0,
-            'sessions_last_24_hours' => 0,
-            'guest_sessions' => 0,
-            'timestamp' => now()->toIso8601String(),
-        ], 500);
-    }
-});
-
-// DIRECT DATABASE ACCESS - COMPLETELY PUBLIC
-Route::get('/rawsessions', function () {
-    try {
-        // Direct SQL query to avoid any middleware, authentication, or Laravel magic
-        $totalSessions = DB::select('SELECT COUNT(*) as count FROM sessions')[0]->count;
-        $activeSessions = DB::select('SELECT COUNT(*) as count FROM sessions WHERE is_active = 1')[0]->count;
-        $recentSessions = DB::select('SELECT COUNT(*) as count FROM sessions WHERE created_at >= ?', 
-            [\Carbon\Carbon::now()->subDay()])[0]->count;
-        
-        return response()->json([
-            'status' => 'success',
-            'total_sessions' => $totalSessions,
-            'total_active_sessions' => $activeSessions,
-            'sessions_last_24_hours' => $recentSessions,
-            'guest_sessions' => DB::select('SELECT COUNT(*) as count FROM sessions WHERE user_id IS NULL')[0]->count,
-            'timestamp' => now()->toIso8601String(),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'error',
-            'message' => $e->getMessage(),
-            'total_sessions' => 0,
-            'total_active_sessions' => 0,
-            'sessions_last_24_hours' => 0,
-            'guest_sessions' => 0,
-            'timestamp' => now()->toIso8601String(),
-        ], 500);
-    }
-});
-
-// ULTRA MINIMAL ENDPOINT - COMPLETELY BYPASSES LARAVEL
-Route::get('/ultracount', function () {
-    // Disable Laravel's error handling and output buffering
-    error_reporting(0);
-    ini_set('display_errors', 0);
-    ob_clean();
+// User Management Routes
+Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
+    // User Management
+    Route::get('/users', [\App\Http\Controllers\API\UserManagementController::class, 'index']);
+    Route::get('/users/{user}', [\App\Http\Controllers\API\UserManagementController::class, 'show']);
+    Route::post('/users/{user}', [\App\Http\Controllers\API\UserManagementController::class, 'update']);
+    Route::delete('/users/{user}', [\App\Http\Controllers\API\UserManagementController::class, 'destroy']);
     
-    // Set headers
-    header('Content-Type: application/json');
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET');
-    header('Cache-Control: no-cache, no-store, must-revalidate');
-    header('Pragma: no-cache');
-    header('Expires: 0');
+    // User Suspension Routes
+    Route::post('/users/{user}/suspend', [\App\Http\Controllers\API\UserManagementController::class, 'suspend']);
+    Route::post('/users/{user}/unsuspend', [\App\Http\Controllers\API\UserManagementController::class, 'unsuspend']);
     
-    // Get count directly from DB
-    try {
-        $count = DB::table('sessions')->count();
-    } catch (\Exception $e) {
-        $count = 5; // Fallback count
-    }
+    // User Password Change Route
+    Route::post('/users/{user}/change-password', [\App\Http\Controllers\API\UserManagementController::class, 'changePassword']);
+});
+
+// Authentication Routes
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/register', [AuthController::class, 'register']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'user']);
     
-    // Output raw JSON
-    echo json_encode(['count' => $count]);
+    // Check if the current user is suspended - add explicit middleware to ensure no caching
+    Route::get('/check-suspended', [AuthController::class, 'checkSuspendStatus'])
+        ->middleware(['nocache']);
+});
+
+// User profile routes
+Route::middleware(['auth:sanctum'])->prefix('profile')->group(function () {
+    Route::get('/me', [UserProfileController::class, 'getCurrentUserProfile']);
+    Route::get('/{id}', [UserProfileController::class, 'getUserProfile']);
+});
+
+// User session management routes
+Route::middleware(['auth:sanctum', 'web', \App\Http\Middleware\SessionConfig::class, \App\Http\Middleware\SessionManager::class])
+    ->prefix('sessions')
+    ->group(function () {
+        Route::get('/', [UserSessionController::class, 'index']);
+        Route::delete('/{id}', [UserSessionController::class, 'destroy']);
+        Route::post('/current/refresh', [UserSessionController::class, 'refreshCurrent']);
+        Route::delete('/other', [UserSessionController::class, 'revokeOthers']);
+        Route::get('/stats', [UserSessionController::class, 'stats']);
+    });
+
+// Domain Management Routes
+Route::prefix('domains')->middleware(['api'])->group(function () {
+    Route::get('/', [DomainApiController::class, 'index']);
+    Route::post('/', [DomainApiController::class, 'store']);
+    Route::post('/{id}/activate', [DomainApiController::class, 'activate']);
+    Route::post('/{id}/deactivate', [DomainApiController::class, 'deactivate']);
+    Route::post('/{id}/verify', [DomainApiController::class, 'verify']);
+    Route::put('/{id}', [DomainApiController::class, 'update']);
+    Route::delete('/{id}', [DomainApiController::class, 'destroy']);
+});
+
+// Domain routes (legacy - kept for backward compatibility)
+Route::middleware('auth:sanctum')->group(function () {
+    // Remove the duplicate /client/set-domain route since we have it in the client group above
+    Route::get('/client/domain-legacy', [DomainController::class, 'getDomain']);
+    Route::put('/client/domain-legacy', [DomainController::class, 'updateDomain']);
+});
+
+// Content API routes for plugin fingerprint data
+Route::prefix('content')->group(function () {
+    Route::post('/', [App\Http\Controllers\API\ContentController::class, 'store']);
+    Route::get('/', [App\Http\Controllers\API\ContentController::class, 'index']);
+});
+
+// Client Domain Management Routes (Protected by hybrid auth - supports both session and token authentication)
+Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\SessionConfig::class])->prefix('client')->group(function () {
+    Route::get('/dashboard', [ClientController::class, 'dashboard']);
+    Route::get('/dashboard-stats', [ClientController::class, 'dashboardStats']);
     
-    // Exit immediately
-    exit(0);
-})->withoutMiddleware(['web', 'api']);
+    // Domain management for popup card
+    Route::post('/set-domain', [ClientDomainController::class, 'setDomain']);
+    Route::get('/domain', [ClientDomainController::class, 'getDomain']);
+    Route::put('/domain', [ClientDomainController::class, 'updateDomain']);
+    Route::delete('/domain', [ClientDomainController::class, 'removeDomain']);
+    
+    // Content management for client users
+    Route::get('/content', [\App\Http\Controllers\API\ContentController::class, 'getClientContent']);
+    Route::delete('/content/{contentId}', [\App\Http\Controllers\API\ContentController::class, 'rejectContent']);
+});
 
 // Fallback route for API 404s - must be at the end of the file
 Route::fallback(function () {

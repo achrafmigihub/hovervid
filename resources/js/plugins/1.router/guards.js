@@ -1,5 +1,5 @@
-import { canNavigate } from '@layouts/plugins/casl'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { canNavigate } from '@layouts/plugins/casl'
 import axios from 'axios'
 
 export const setupGuards = router => {
@@ -43,7 +43,14 @@ export const setupGuards = router => {
             }
           }
         } else {
-          console.log('Received 401 without token - unauthorized request')
+          // Only log this for non-auth related endpoints
+          // Auth endpoints like /session-user are expected to return 401 for guests
+          const isAuthEndpoint = error.config?.url?.includes('/auth/') || 
+                                 error.config?.url?.includes('/sanctum/')
+          
+          if (!isAuthEndpoint) {
+            console.log('Received 401 without token - unauthorized request to:', error.config?.url)
+          }
         }
       }
       

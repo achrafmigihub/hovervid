@@ -14,6 +14,13 @@
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
 
+    # API Endpoint Rewrites - Updated to be more specific
+    RewriteRule ^api/users/([0-9]+)$ api-users.php?id=$1 [L,QSA]
+    RewriteRule ^api/users$ api-users.php [L,QSA]
+    
+    # API for user management
+    RewriteRule ^api/user-management/(.*)$ user-management.php/$1 [L]
+
     # Send Requests To Front Controller...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f

@@ -3,6 +3,9 @@ import navItems from '@/navigation/vertical'
 import { themeConfig } from '@themeConfig'
 
 // Components
+import DomainSetupPopup from '@/components/DomainSetupPopup.vue'
+import NavRefresher from '@/components/NavRefresher.vue'
+import SuspendedUserModal from '@/components/SuspendedUserModal.vue'
 import Footer from '@/layouts/components/Footer.vue'
 import NavBarNotifications from '@/layouts/components/NavBarNotifications.vue'
 import NavSearchBar from '@/layouts/components/NavSearchBar.vue'
@@ -10,13 +13,113 @@ import NavbarShortcuts from '@/layouts/components/NavbarShortcuts.vue'
 import NavbarThemeSwitcher from '@/layouts/components/NavbarThemeSwitcher.vue'
 import UserProfile from '@/layouts/components/UserProfile.vue'
 import NavBarI18n from '@core/components/I18n.vue'
-import NavRefresher from '@/components/NavRefresher.vue'
 
 // @layouts plugin
 import { useConfigStore } from '@/@core/stores/config'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { VerticalNavLayout } from '@layouts'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 const configStore = useConfigStore()
+const authStore = useAuthStore()
+
+// Navigation state management
+const navRefreshKey = ref(0)
+const isNavLoading = ref(true)
+const navError = ref(null)
+const authInitialized = ref(false)
+
+// Computed navigation items that wait for auth initialization
+const computedNavItems = computed(() => {
+  // Don't render navigation items until auth is initialized
+  if (!authStore.sessionInitialized || isNavLoading.value) {
+    return []
+  }
+
+  try {
+    // Filter navigation items based on current auth state
+    return navItems.filter(item => {
+      // If item has conditionalVisible function, evaluate it
+      if (typeof item.conditionalVisible === 'function') {
+        return item.conditionalVisible()
+      }
+      // Default to showing the item if no condition specified
+      return true
+    })
+  } catch (error) {
+    console.error('Error filtering navigation items:', error)
+    navError.value = error
+    return []
+  }
+})
+
+// Initialize navigation after auth is ready
+const initializeNavigation = async () => {
+  try {
+    isNavLoading.value = true
+    navError.value = null
+    
+    // Wait for auth store to be fully initialized
+    if (!authStore.sessionInitialized) {
+      console.log('Waiting for auth initialization before rendering navigation...')
+      return
+    }
+
+    console.log('Auth initialized, setting up navigation for user role:', authStore.user?.role)
+    
+    // Allow Vue to process auth state changes
+    await nextTick()
+    
+    // Mark auth as initialized for navigation
+    authInitialized.value = true
+    
+    // Refresh navigation key to trigger re-render
+    navRefreshKey.value++
+    
+    console.log('Navigation initialized successfully')
+  } catch (error) {
+    console.error('Error initializing navigation:', error)
+    navError.value = error
+  } finally {
+    isNavLoading.value = false
+  }
+}
+
+// Watch for auth store initialization
+watch(() => authStore.sessionInitialized, async (newVal) => {
+  if (newVal) {
+    console.log('Auth session initialized, initializing navigation...')
+    await initializeNavigation()
+  }
+}, { immediate: true })
+
+// Watch for user role changes
+watch(() => authStore.user?.role, async (newRole, oldRole) => {
+  if (newRole !== oldRole && authStore.sessionInitialized) {
+    console.log('User role changed from', oldRole, 'to', newRole, '- refreshing navigation')
+    await initializeNavigation()
+  }
+})
+
+// Watch for authentication state changes
+watch(() => authStore.isAuthenticated, async (newVal, oldVal) => {
+  if (newVal !== oldVal && authStore.sessionInitialized) {
+    console.log('Authentication state changed to', newVal, '- refreshing navigation')
+    await initializeNavigation()
+  }
+})
+
+// Initialize on mount
+onMounted(async () => {
+  console.log('DefaultLayoutWithVerticalNav mounted')
+  
+  // If auth is already initialized, set up navigation
+  if (authStore.sessionInitialized) {
+    await initializeNavigation()
+  } else {
+    console.log('Auth not yet initialized, waiting...')
+  }
+})
 
 // ℹ️ Provide animation name for vertical nav collapse icon.
 const verticalNavHeaderActionAnimationName = ref(null)
@@ -35,9 +138,40 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
 </script>
 
 <template>
-  <VerticalNavLayout :nav-items="navItems">
+  <VerticalNavLayout :nav-items="computedNavItems" :key="navRefreshKey">
     <!-- Add NavRefresher to update navigation when auth state changes -->
     <NavRefresher />
+    
+    <!-- Navigation Loading State -->
+    <template v-if="isNavLoading && !authStore.sessionInitialized" #nav-header>
+      <div class="nav-loading-container d-flex align-center justify-center pa-4">
+        <VProgressCircular
+          indeterminate
+          color="primary"
+          size="24"
+          width="3"
+        />
+        <span class="text-sm ml-2">Loading navigation...</span>
+      </div>
+    </template>
+
+    <!-- Navigation Error State -->
+    <template v-else-if="navError" #nav-header>
+      <div class="nav-error-container pa-4">
+        <VAlert
+          type="error"
+          variant="tonal"
+          density="compact"
+          closable
+          @click:close="navError = null"
+        >
+          <VAlertTitle>Navigation Error</VAlertTitle>
+          <div class="text-caption">
+            Failed to load navigation. Please refresh the page.
+          </div>
+        </VAlert>
+      </div>
+    </template>
     
     <!-- 👉 navbar -->
     <template #navbar="{ toggleVerticalOverlayNavActive }">
@@ -64,6 +198,17 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
         <NavbarThemeSwitcher />
         <NavbarShortcuts />
         <NavBarNotifications class="me-1" />
+        
+        <!-- Show loading indicator in navbar if navigation is still loading -->
+        <div v-if="isNavLoading" class="me-2">
+          <VProgressCircular
+            indeterminate
+            color="primary"
+            size="16"
+            width="2"
+          />
+        </div>
+        
         <UserProfile />
       </div>
     </template>
@@ -78,11 +223,27 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
 
     <!-- 👉 Customizer -->
     <TheCustomizer />
+    
+    <!-- 👉 Suspended User Modal -->
+    <SuspendedUserModal />
+
+    <!-- 👉 Domain Setup Popup -->
+    <DomainSetupPopup />
   </VerticalNavLayout>
 </template>
 
 <style lang="scss">
 @use "@layouts/styles/mixins" as layoutsMixins;
+
+// Navigation loading and error styles
+.nav-loading-container {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgba(var(--v-theme-surface), 1);
+}
+
+.nav-error-container {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
 
 .layout-vertical-nav {
   // ℹ️ Nav header circle on the right edge

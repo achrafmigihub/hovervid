@@ -1,0 +1,908 @@
+/* Color Palette */
+:root {
+    --header-color: #334257;   /* Update to match your SVG */
+    --button-hover: #476072;   /* Update if needed */
+    --text-light: #EEEEEE;    
+    --close-hover: #dc2626;   
+    --shadow: rgba(0, 0, 0, 0.25);
+}
+
+/* Base Styles */
+body {
+    position: relative;
+    width: 100%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    position: relative;
+    width: 100%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Override WordPress admin bar styles */
+html.wp-toolbar {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+body.wp-toolbar {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Toggle Button */
+.slvp-toggle-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background: transparent; /* Remove background */
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 99998;
+    border: none;
+    transition: all 0.2s ease;
+    padding: 0; /* Remove padding */
+    box-shadow: none; /* Remove shadow */
+}
+
+.slvp-toggle-button img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.slvp-toggle-button:hover {
+    transform: translateY(-2px);
+}
+
+.slvp-toggle-button:active {
+    transform: translateY(0);
+}
+
+/* Player Container */
+#slvp-player-container {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    background: #F5F7FA;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px var(--shadow);
+    z-index: 99999;
+    overflow: hidden;
+    display: none;
+    transition: width 0.2s ease, height 0.2s ease, left 0.2s ease, top 0.2s ease, right 0.2s ease, bottom 0.2s ease;
+    min-width: 300px; /* Increased to accommodate header controls */
+    min-height: 460px;
+}
+
+#slvp-player-container.slvp-visible {
+    display: block;
+    animation: slvp-fadeIn 0.3s ease;
+}
+
+/* Resize States */
+#slvp-player-container.resizing {
+    transition: none;
+    will-change: width, height, left, top, right, bottom;
+}
+
+#slvp-player-container.resizing-left { cursor: w-resize; }
+#slvp-player-container.resizing-right { cursor: e-resize; }
+#slvp-player-container.resizing-top { cursor: n-resize; }
+#slvp-player-container.resizing-bottom { cursor: s-resize; }
+#slvp-player-container.resizing-top-left { cursor: nw-resize; }
+#slvp-player-container.resizing-top-right { cursor: ne-resize; }
+#slvp-player-container.resizing-bottom-left { cursor: sw-resize; }
+#slvp-player-container.resizing-bottom-right { cursor: se-resize; }
+#slvp-player-container.resizing-centered { cursor: move; }
+
+/* Player Header */
+.slvp-player-header {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background: #FFFFFF; /* Changed from var(--header-color) to white */
+    border-bottom: 1px solid #F5F7FA; /* Updated border color to match container */
+}
+
+/* Logo/Title text */
+.slvp-player-title {
+    color: var(--text-light);    
+    margin-right: auto;
+    font-size: 10px !important;
+    font-weight: normal;
+}
+
+.slvp-player-logo {
+    height: calc(48px * var(--scale, 1)); /* Base height with scaling factor */
+    width: auto;
+    margin-right: 8px;
+    transition: all 0.2s ease;
+}
+
+.slvp-player-logo img {
+    height: 100%;
+    width: auto;
+    filter: none;
+}
+
+/* Controls container */
+.slvp-player-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* Control buttons */
+.slvp-control-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: #334257;
+    transition: all 0.2s ease;
+    font-size: 20px;
+}
+
+.slvp-minus-btn { order: 1; }
+.slvp-plus-btn { order: 2; }
+.slvp-close-btn { order: 3; }
+
+.slvp-plus-btn:hover,
+.slvp-minus-btn:hover {
+    background: #F5F7FA; /* Light background on hover */
+    color: #476072; /* Darker text on hover */
+}
+
+.slvp-close-btn:hover {
+    background: #FEE2E2; /* Light red background */
+    color: #DC2626; /* Red text */
+}
+
+/* Video Container */
+.slvp-video-frame {
+    position: relative;
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    width: 100% !important;
+    height: calc(100% - 60px) !important;
+    background: #FFFFFF;
+    transition: width 0.2s ease, height 0.2s ease;
+    overflow: hidden;
+}
+
+.slvp-video-frame video {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    object-fit: fill !important;
+    transition: width 0.2s ease, height 0.2s ease;
+}
+
+/* Hide default video controls */
+#slvp-video-player::-webkit-media-controls-panel,
+#slvp-video-player::-webkit-media-controls-play-button,
+#slvp-video-player::-webkit-media-controls-start-playback-button,
+#slvp-video-player::-webkit-media-controls-volume-slider,
+#slvp-video-player::-webkit-media-controls-mute-button,
+#slvp-video-player::-webkit-media-controls-timeline,
+#slvp-video-player::-webkit-media-controls-current-time-display,
+#slvp-video-player::-webkit-media-controls-time-remaining-display,
+#slvp-video-player::-webkit-media-controls-fullscreen-button,
+#slvp-video-player::-webkit-media-controls-toggle-closed-captions-button {
+    display: none !important;
+}
+
+/* Custom play button */
+.slvp-play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.slvp-play-button::before {
+    content: '\f04b';
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 24px;
+    color: #334257;
+}
+
+.slvp-play-button.visible {
+    display: flex;
+}
+
+/* Text Wrapper */
+.slvp-text-wrapper {
+    position: relative;
+    display: inline-block;
+    transition: all 0.2s ease;
+    padding: 0;
+    cursor: text;
+}
+
+/* Add hover detection area */
+.slvp-text-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    bottom: -5px;
+    left: -5px;
+    z-index: -1;
+    pointer-events: auto;
+}
+
+/* Translation Icon */
+.slvp-translate-icon {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 0;
+    min-width: 32px;
+    max-width: 48px;
+    min-height: 32px;
+    max-height: 48px;
+    width: auto;
+    height: 100%;
+    background: transparent;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    z-index: 1000;
+    overflow: hidden;
+    padding: 4px;
+}
+
+.slvp-translate-icon img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    transition: all 0.2s ease;
+}
+
+.slvp-translate-icon:hover img {
+    transform: scale(1.1);
+}
+
+/* Scale icon based on text size */
+h1 .slvp-translate-icon {
+    min-width: 40px; /* Increased from 32px */
+    min-height: 40px; /* Increased from 32px */
+    max-width: 56px; /* Increased from 48px */
+    max-height: 56px; /* Increased from 48px */
+}
+
+h2 .slvp-translate-icon,
+h3 .slvp-translate-icon {
+    min-width: 36px; /* Increased from 28px */
+    min-height: 36px; /* Increased from 28px */
+    max-width: 48px; /* Increased from 40px */
+    max-height: 48px; /* Increased from 40px */
+}
+
+.dropdown .slvp-translate-icon,
+.dropdown-menu .slvp-translate-icon {
+    min-width: 32px; /* Increased from 24px */
+    min-height: 32px; /* Increased from 24px */
+    max-width: 40px; /* Increased from 30px */
+    max-height: 40px; /* Increased from 30px */
+}
+
+.slvp-translate-icon:hover {
+    background: transparent;
+}
+
+/* Hover States */
+body.slvp-active .slvp-text-wrapper:hover .slvp-translate-icon {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+body.slvp-active .slvp-text-wrapper:hover {
+    outline: 2px dashed #00EAAA;
+    outline-offset: 2px;
+    border: none;
+    border-radius: 4px;
+}
+
+/* Fix for Elementor icon lists without affecting combined elements */
+body.slvp-active .elementor-icon-list-text:not(.slvp-combined):hover .slvp-translate-icon {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Ensure icon is visible in Elementor icon lists */
+body.slvp-active .elementor-icon-list-text:not(.slvp-combined):hover {
+    outline: 2px dashed #00EAAA;
+    outline-offset: 2px;
+    border: none;
+    border-radius: 4px;
+}
+
+/* Current Translation States */
+.slvp-current-translation {
+    border: none !important;    
+    outline: 2px dashed #00EAAA !important;
+    border-radius: 4px;
+    background: rgba(0, 234, 170, 0.1) !important;
+    pointer-events: none !important; /* Disable pointer events for active translation */
+}
+
+.slvp-text-wrapper[data-is-link="true"].slvp-current-translation {
+    outline-color: #00EAAA !important;
+}
+
+.slvp-text-wrapper[data-is-button="true"].slvp-current-translation {
+    outline-color: #00EAAA !important;
+}
+
+/* Disable hover effect for current translation */
+body.slvp-active .slvp-current-translation:hover,
+body.slvp-active .slvp-current-translation::before:hover {
+    border: none !important;
+    outline: 2px dashed #00EAAA !important;
+    background: rgba(0, 234, 170, 0.1) !important;
+}
+
+/* Special Content Types */
+.slvp-text-wrapper[data-is-link="true"],
+.slvp-text-wrapper[data-is-button="true"] {
+    cursor: pointer;
+    padding-right: 0;
+}
+
+.slvp-text-wrapper[data-is-link="true"] .slvp-translate-icon {
+    background: transparent;
+}
+
+.slvp-text-wrapper[data-is-button="true"] .slvp-translate-icon {
+    background: transparent;
+}
+
+/* Loading States */
+.slvp-spinner {
+    width: 20px;         
+    height: 20px;        
+    margin: 2px;
+    border: 3px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: slvp-spin 0.8s linear infinite;
+}
+
+.slvp-processing {
+    outline-color: #f1c40f !important;
+    cursor: progress !important;
+}
+
+/* Animations */
+@keyframes slvp-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slvp-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Text Markers */
+.slvp-text-marker {
+    cursor: pointer;     
+    transition: all 0.2s ease;
+    padding: 0 2px;      
+    margin: 0 -2px;       
+}
+
+/* Hover for text */
+.slvp-text-marker:hover {
+    background: rgba(74, 144, 226, 0.1);
+    outline: 2px dashed rgba(74, 144, 226, 0.3); 
+}
+
+/* Ensure links are clickable */
+.slvp-text-wrapper a {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto !important;
+}
+
+/* Special cases */
+nav .slvp-text-wrapper,
+header .slvp-text-wrapper,
+footer .slvp-text-wrapper,
+h1 .slvp-text-wrapper,
+h2 .slvp-text-wrapper,
+h3 .slvp-text-wrapper,
+h4 .slvp-text-wrapper,
+h5 .slvp-text-wrapper,
+h6 .slvp-text-wrapper {
+    display: inline-block !important;
+}
+
+/* Combined elements hover detection */
+.slvp-combined::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    bottom: -5px;
+    left: -5px;
+    z-index: -1;
+    pointer-events: auto;
+}
+
+body.slvp-active .slvp-combined:hover .slvp-translate-icon,
+body.slvp-active .slvp-combined::before:hover ~ .slvp-translate-icon {
+    display: flex !important;
+}
+
+body.slvp-active .slvp-combined:hover {
+    outline: 2px dashed #00EAAA;
+    outline-offset: 2px;
+    border: none;
+    border-radius: 4px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+}
+
+/* Disable hover effect for current combined translation */
+body.slvp-active .slvp-combined.slvp-current-translation:hover,
+body.slvp-active .slvp-combined.slvp-current-translation::before:hover {
+    border: none !important;
+    outline: 2px dashed #00EAAA !important;
+    background: rgba(0, 234, 170, 0.1) !important;
+    pointer-events: none !important; /* Disable pointer events for active combined translation */
+}
+
+body.slvp-active .slvp-combined.slvp-current-translation:hover .slvp-translate-icon,
+body.slvp-active .slvp-combined.slvp-current-translation::before:hover ~ .slvp-translate-icon {
+    display: none !important;
+}
+
+/* Remove the duplicate border style that was causing the third border */
+/* body.slvp-active .slvp-text-wrapper:not(.slvp-combined):not(.slvp-combined *):hover {
+    border: 2px dashed #00EAAA !important;
+} */
+
+/* Responsive styles */
+@media screen and (max-width: 768px) {
+    html, body {
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+        position: relative; /* Add this to prevent blank space */
+    }
+
+    #slvp-player-container {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        width: calc(100vw - 20px);
+        height: auto;
+        min-width: 280px;
+        min-height: 200px;
+        max-width: calc(100vw - 20px);
+        max-height: 80vh;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        z-index: 99999; /* Ensure it's above other elements */
+    }
+
+    .slvp-toggle-button {
+        position: fixed;
+        bottom: 10px;
+        right: 15px;
+        width: 65px;
+        height: 65px;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        z-index: 99998;
+    }
+
+    .slvp-toggle-button img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    /* Adjust control buttons for mobile */
+    .slvp-control-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+    }
+
+    /* Adjust header for mobile */
+    .slvp-player-header {
+        padding: 8px;
+        min-height: 50px;
+    }
+
+    /* Ensure video frame fits in container */
+    .slvp-video-frame {
+        width: 100% !important;
+        height: calc(100% - 50px) !important;
+        max-height: calc(80vh - 50px);
+        min-width: 280px;
+        max-width: calc(100vw - 20px);
+    }
+
+    .slvp-video-frame video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    html, body {
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+        position: relative; /* Add this to prevent blank space */
+    }
+
+    #slvp-player-container {
+        min-width: 250px;
+        min-height: 150px;
+        bottom: 5px;
+        right: 5px;
+        width: calc(100vw - 10px);
+        max-width: calc(100vw - 10px);
+    }
+
+    .slvp-toggle-button {
+        width: 60px;
+        height: 60px;
+        bottom: 5px;
+        right: 10px;
+    }
+
+    .slvp-toggle-button img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    /* Further reduce control buttons */
+    .slvp-control-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 16px;
+    }
+
+    /* Adjust header for small mobile */
+    .slvp-player-header {
+        padding: 6px;
+        min-height: 45px;
+    }
+
+    .slvp-video-frame {
+        min-width: 250px;
+        height: calc(100% - 45px) !important;
+        max-width: calc(100vw - 10px);
+    }
+}
+
+/* Landscape orientation */
+@media screen and (max-height: 480px) and (orientation: landscape) {
+    html, body {
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+        position: relative; /* Add this to prevent blank space */
+    }
+
+    #slvp-player-container {
+        width: 60vw;
+        height: calc(100vh - 20px);
+        right: 10px;
+        bottom: 10px;
+        max-height: none;
+        min-width: 280px;
+        max-width: 60vw;
+    }
+
+    .slvp-toggle-button {
+        width: 65px;
+        height: 65px;
+        right: 15px;
+        bottom: 10px;
+    }
+
+    .slvp-toggle-button img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .slvp-video-frame {
+        height: calc(100% - 45px);
+        min-width: 280px;
+        max-width: 60vw;
+    }
+
+    .slvp-player-header {
+        padding: 6px;
+        min-height: 45px;
+    }
+}
+
+/* Fix for WordPress admin bar on mobile */
+@media screen and (max-width: 782px) {
+    html.wp-toolbar {
+        padding-top: 0 !important; /* Override WordPress default padding */
+        margin-top: 0 !important; /* Ensure no margin is applied */
+    }
+    
+    body.wp-toolbar {
+        padding-top: 0 !important; /* Override WordPress default padding */
+        margin-top: 0 !important; /* Ensure no margin is applied */
+    }
+    
+    #wpadminbar {
+        position: fixed !important; /* Ensure admin bar is fixed */
+        z-index: 99999; /* Keep it above other elements */
+    }
+    
+    /* Ensure no margin is applied to html element */
+    html {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    #slvp-player-container {
+        bottom: calc(10px + 46px);
+    }
+    
+    .slvp-toggle-button {
+        bottom: calc(10px + 46px);
+    }
+}
+
+/* Fix for iOS Safari */
+@supports (-webkit-touch-callout: none) {
+    #slvp-player-container {
+        position: fixed;
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+    }
+    
+    /* Fix for iOS Safari blank space issue */
+    html, body {
+        position: relative;
+        height: auto;
+        min-height: 100%;
+        overflow-x: hidden;
+        margin-top: 0 !important; /* Ensure no margin is applied */
+        padding-top: 0 !important; /* Ensure no padding is applied */
+    }
+    
+    /* Additional fix for iOS Safari with admin bar */
+    html.wp-toolbar, body.wp-toolbar {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+}
+
+/* Disabled Message */
+.slvp-disabled-message {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 99999;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 10px 15px;
+    border-radius: 5px;
+}
+
+.slvp-login-link {
+    color: white;
+    text-decoration: none;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.slvp-login-link:hover {
+    color: #4CAF50;
+}
+
+/* Resizing Transitions */
+#slvp-player-container.resizing .slvp-video-frame,
+#slvp-player-container.resizing .slvp-video-frame video {
+    transition: none;
+}
+
+/* Add a class to indicate that a translation has failed */
+.slvp-error {
+    outline-color: #e74c3c !important;
+    cursor: not-allowed !important;
+}
+
+/* Link hover styles */
+body.slvp-active a:hover .slvp-translate-icon,
+body.slvp-active a.slvp-hover .slvp-translate-icon,
+body.slvp-active .slvp-text-wrapper:hover .slvp-translate-icon {
+    display: inline-block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Ensure links with translation icons don't show default browser styles */
+body.slvp-active a .slvp-translate-icon {
+    display: none !important;
+}
+
+body.slvp-active a:not(.slvp-combined) .slvp-translate-icon {
+    display: none !important;
+}
+
+body.slvp-active .slvp-combined a .slvp-translate-icon {
+    display: none !important;
+}
+
+/* Remove dashed border on hover for links with translation icons */
+body.slvp-active a:hover,
+body.slvp-active a.slvp-hover {
+    outline: none !important;
+    text-decoration: none !important;
+    border: none !important;
+}
+
+/* Elementor Compatibility Enhancements */
+.elementor-widget-container .slvp-text-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.elementor-widget-container .slvp-translate-icon {
+    z-index: 9999;
+}
+
+/* Fix for Elementor sections and columns */
+.elementor-section,
+.elementor-column {
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure video player stays above Elementor elements */
+#slvp-player-container {
+    z-index: 99999;
+}
+
+/* Fix for Elementor widgets with overflow */
+.elementor-widget-wrap {
+    overflow: visible;
+}
+
+/* Ensure translation icons are visible in Elementor widgets */
+.elementor-widget:not(.elementor-widget-theme-post-content):not(.elementor-widget-theme-post-excerpt) .slvp-text-wrapper {
+    position: relative;
+}
+
+/* Fix for Elementor tabs and accordions */
+.elementor-tab-content,
+.elementor-accordion-item {
+    position: relative;
+    z-index: 1;
+}
+
+/* Inactive toggle button styles */
+.slvp-toggle-button.slvp-inactive {
+    opacity: 0.6;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+    transition: all 0.3s ease;
+}
+
+.slvp-toggle-button.slvp-inactive:hover {
+    opacity: 0.8;
+}
+
+/* Custom tooltip styling */
+.slvp-toggle-button.slvp-inactive::after {
+    content: "License Invalid or Subscription Expired";
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    transform: translateY(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    text-align: center;
+    padding: 8px 12px;
+    border-radius: 4px;
+    white-space: nowrap;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s, visibility 0.3s;
+    font-size: 12px;
+    margin-right: 8px;
+    pointer-events: none;
+    z-index: 999;
+    width: max-content;
+    max-width: 220px;
+}
+
+.slvp-toggle-button.slvp-inactive:hover::after {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Add arrow to tooltip */
+.slvp-toggle-button.slvp-inactive::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    transform: translateY(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: transparent transparent transparent rgba(0, 0, 0, 0.8);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s, visibility 0.3s;
+    margin-right: -6px;
+}
+
+.slvp-toggle-button.slvp-inactive:hover::before {
+    visibility: visible;
+    opacity: 1;
+}
+

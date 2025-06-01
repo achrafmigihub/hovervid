@@ -172,6 +172,8 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\AuthServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+        App\Providers\SessionServiceProvider::class,
+        App\Providers\EventServiceProvider::class,
     ],
 
 ];

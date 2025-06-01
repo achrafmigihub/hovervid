@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import AddNewUserDrawer from '@/views/apps/user/list/AddNewUserDrawer.vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 // 👉 Store
 const searchQuery = ref('')
@@ -92,7 +92,7 @@ const fetchPostgresUsers = async () => {
           email: user.email,
           role: user.role || 'client',
           currentPlan: 'basic',
-          status: user.status || 'active',
+          status: user.status ? user.status.toLowerCase() : 'inactive',
           avatar: null,
           billing: 'Auto Debit'
         })),
@@ -395,18 +395,15 @@ const sessionStats = ref({
   sessions_last_24_hours: 0,
   guest_sessions: 0,
   sessions_by_role: {},
-})
+  active_users: 0,
+});
 
 // Function to fetch session statistics
 const fetchSessionStats = async () => {
   try {
-    console.log('Fetching session statistics...')
-    
     // Make the API call to our api endpoint
     const response = await fetch('/api-sessions.php')
     const data = await response.json()
-    
-    console.log('Session statistics response:', data)
     
     if (data && data.success) {
       // Update sessionStats with the response data
@@ -415,13 +412,12 @@ const fetchSessionStats = async () => {
         total_active_sessions: data.total_active_sessions || 0,
         sessions_last_24_hours: data.sessions_last_24_hours || 0,
         guest_sessions: data.guest_sessions || 0,
-        sessions_by_role: data.sessions_by_role || {}
+        sessions_by_role: data.sessions_by_role || {},
+        active_users: data.active_users || 0,
       }
       
       // Fetch user session statuses
       await fetchUserSessionStatuses()
-      
-      console.log('Updated sessionStats:', sessionStats.value)
       return true
     }
     
@@ -435,8 +431,6 @@ const fetchSessionStats = async () => {
 // Function to fetch session status for each user
 const fetchUserSessionStatuses = async () => {
   try {
-    console.log('Fetching user session statuses...')
-    
     // Fetch session statuses for all users
     const response = await fetch('/session-maintenance.php?action=list')
     const data = await response.json()
@@ -452,7 +446,6 @@ const fetchUserSessionStatuses = async () => {
       })
       
       userSessionStatus.value = statusMap
-      console.log('Updated user session statuses:', userSessionStatus.value)
     }
   } catch (error) {
     console.error('Error fetching user session statuses:', error)
@@ -463,11 +456,11 @@ const fetchUserSessionStatuses = async () => {
 const getUserSessionStatus = userId => {
   // Check if we have session status for this user
   if (userSessionStatus.value[userId] !== undefined) {
-    return userSessionStatus.value[userId] ? 'active' : 'inactive'
+    return userSessionStatus.value[userId] ? 'active-session' : 'inactive-session';
   }
   
   // If no session data, return 'inactive' instead of 'offline'
-  return 'inactive'
+  return 'inactive-session';
 }
 
 // Create widgetData based on real session statistics
@@ -475,18 +468,10 @@ const widgetData = computed(() => {
   // Get actual values with fallbacks
   const totalSessions = sessionStats.value?.total_sessions || 0
   const activeSessions = sessionStats.value?.total_active_sessions || 0
+  const activeUsers = sessionStats.value?.active_users || 0
   const recentSessions = sessionStats.value?.sessions_last_24_hours || 0
   const guestSessions = sessionStats.value?.guest_sessions || 0
   const adminSessions = sessionStats.value?.sessions_by_role?.admin || 0
-  
-  console.log('Building widget data using sessions:', {
-    totalUsers: totalUsers.value,
-    totalUsersType: typeof totalUsers.value,
-    totalUsersDirectAccess: typeof totalUsers,
-    sessionStats: sessionStats.value,
-    adminSessions,
-    totalSessions
-  })
   
   return [
     {
@@ -507,8 +492,8 @@ const widgetData = computed(() => {
     },
     {
       title: 'Active Users',
-      value: String(totalUsers.value || 0),
-      change: totalUsers.value > 0 ? Math.min(100, Math.round((adminSessions / totalUsers.value) * 100)) : 0,
+      value: activeUsers.toString(),
+      change: activeUsers > 0 ? Math.min(100, Math.round((adminSessions / activeUsers) * 100)) : 0,
       desc: `Admin Sessions: ${adminSessions}`,
       icon: 'bx-user-check',
       iconColor: 'success',
@@ -822,12 +807,12 @@ onUnmounted(() => {
         <!-- Status -->
         <template #item.status="{ item }">
           <VChip
-            :color="resolveUserStatusVariant(getUserSessionStatus(item.id))"
+            :color="resolveUserStatusVariant(item.status)"
             size="small"
             label
             class="text-capitalize"
           >
-            {{ getUserSessionStatus(item.id) }}
+            {{ item.status }}
           </VChip>
         </template>
 
@@ -837,7 +822,7 @@ onUnmounted(() => {
             <VIcon icon="bx-trash" />
           </IconBtn>
 
-          <IconBtn>
+          <IconBtn :to="{ path: `/admin/users/${item.id}` }">
             <VIcon icon="bx-show" />
           </IconBtn>
 
@@ -849,14 +834,6 @@ onUnmounted(() => {
             <VIcon icon="bx-dots-vertical-rounded" />
             <VMenu activator="parent">
               <VList>
-                <VListItem :to="{ path: `/admin/users/${item.id}` }">
-                  <template #prepend>
-                    <VIcon icon="bx-show" />
-                  </template>
-
-                  <VListItemTitle>View</VListItemTitle>
-                </VListItem>
-
                 <VListItem link>
                   <template #prepend>
                     <VIcon icon="bx-pencil" />

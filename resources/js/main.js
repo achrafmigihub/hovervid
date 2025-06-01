@@ -1,7 +1,7 @@
-import { createApp } from 'vue'
 import App from '@/App.vue'
-import { registerPlugins } from '@core/utils/plugins'
 import { registerServiceWorker } from '@/utils/service-worker-setup'
+import { registerPlugins } from '@core/utils/plugins'
+import { createApp } from 'vue'
 
 // Styles
 import '@core-scss/template/index.scss'
@@ -15,6 +15,15 @@ window.addEventListener('load', () => {
     }
   });
 });
+
+// Development navigation testing utility
+if (import.meta.env.DEV) {
+  import('@/utils/navigationTest.js').then(({ exposeTestingFunctions }) => {
+    exposeTestingFunctions?.()
+  }).catch(() => {
+    // Silently fail if navigation test file doesn't exist
+  })
+}
 
 // Create vue app
 const app = createApp(App)

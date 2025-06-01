@@ -1,7 +1,7 @@
 <script setup>
-import AddNewUserDrawer from './AddNewUserDrawer.vue'
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useApi } from '@/composables/useApi'
+import { computed, onMounted, ref, watch } from 'vue'
+import AddNewUserDrawer from './AddNewUserDrawer.vue'
 
 // 👉 Store
 const searchQuery = ref('')

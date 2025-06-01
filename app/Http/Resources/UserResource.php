@@ -21,7 +21,7 @@ class UserResource extends JsonResource
             'fullName' => $this->name,
             'email' => $this->email,
             'role' => $this->role,
-            'status' => $this->status ?? 'active',
+            'status' => $this->status,
             'avatar' => null, // Frontend expects this field, even if null
             'currentPlan' => $this->whenLoaded('subscriptions', function () {
                 return $this->subscriptions->first() ? $this->subscriptions->first()->plan->name : 'Basic';

@@ -2,36 +2,6 @@ import { useAuthStore } from '@/stores/useAuthStore'
 
 export default [
   { heading: 'Others' },
-  // Admin Dashboard item - only visible to admin users
-  {
-    title: 'Admin Dashboard',
-    icon: { icon: 'bx-desktop' },
-    to: { name: 'admin-dashboard' },
-    action: 'read',
-    subject: 'AclDemo',
-    meta: {
-      navActiveLink: 'admin-dashboard',
-    },
-    conditionalVisible: () => {
-      const authStore = useAuthStore()
-      return authStore.isAdmin
-    },
-  },
-  // User Management item - only visible to admin users
-  {
-    title: 'User Management',
-    icon: { icon: 'bx-user-plus' },
-    to: { name: 'apps-user-list' },
-    action: 'read',
-    subject: 'AclDemo',
-    meta: {
-      navActiveLink: 'apps-user-list',
-    },
-    conditionalVisible: () => {
-      const authStore = useAuthStore()
-      return authStore.isAdmin
-    },
-  },
   // Client Dashboard item - only visible to client users
   {
     title: 'Dashboard',
@@ -44,7 +14,21 @@ export default [
     },
     conditionalVisible: () => {
       const authStore = useAuthStore()
-      return authStore.isClient
+      // Wait for auth store to be properly initialized
+      return authStore.sessionInitialized && authStore.user?.role === 'client'
+    },
+  },
+  // Contents item - only visible to client users
+  {
+    title: 'Contents',
+    icon: { icon: 'bx-file-blank' },
+    to: 'apps-contents',
+    action: 'read',
+    subject: 'AclDemo',
+    conditionalVisible: () => {
+      const authStore = useAuthStore()
+      // Wait for auth store to be properly initialized
+      return authStore.sessionInitialized && authStore.user?.role === 'client'
     },
   },
   {

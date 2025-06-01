@@ -92,14 +92,6 @@ export default [
     ],
   },
   {
-    title: 'User',
-    icon: { icon: 'bx-user' },
-    children: [
-      { title: 'List', to: 'apps-user-list' },
-      { title: 'View', to: { name: 'apps-user-view-id', params: { id: 21 } } },
-    ],
-  },
-  {
     title: 'Roles & Permissions',
     icon: { icon: 'bx-check-shield' },
     children: [
@@ -113,6 +105,7 @@ export default [
     children: [
       { title: 'User Profile', to: { name: 'pages-user-profile-tab', params: { tab: 'profile' } } },
       { title: 'Account Settings', to: { name: 'pages-account-settings-tab', params: { tab: 'account' } } },
+      { title: 'Session Management', to: { name: 'account-sessions' } },
       { title: 'Pricing', to: 'pages-pricing' },
       { title: 'FAQ', to: 'pages-faq' },
       {

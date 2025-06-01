@@ -1,5 +1,4 @@
 <script setup>
-import { TransitionGroup } from 'vue'
 import { layoutConfig } from '@layouts'
 import {
   TransitionExpand,
@@ -13,6 +12,7 @@ import {
   isNavGroupActive,
   openGroups,
 } from '@layouts/utils'
+import { TransitionGroup } from 'vue'
 
 const props = defineProps({
   item: {

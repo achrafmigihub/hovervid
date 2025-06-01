@@ -9,16 +9,25 @@ declare global {
   const $api: typeof import('./resources/js/utils/api.js')['$api']
   const COOKIE_MAX_AGE_1_YEAR: typeof import('./resources/js/utils/constants.js')['COOKIE_MAX_AGE_1_YEAR']
   const EffectScope: typeof import('vue')['EffectScope']
+  const NavigationDebugger: typeof import('./resources/js/utils/navigationDebug.js')['NavigationDebugger']
+  const NavigationManager: typeof import('./resources/js/utils/navigationManager.js')['NavigationManager']
+  const NavigationStateManager: typeof import('./resources/js/utils/navigationUtils.js')['NavigationStateManager']
   const acceptHMRUpdate: typeof import('pinia')['acceptHMRUpdate']
   const alphaDashValidator: typeof import('./resources/js/@core/utils/validators.js')['alphaDashValidator']
   const alphaValidator: typeof import('./resources/js/@core/utils/validators.js')['alphaValidator']
   const apiCall: typeof import('./resources/js/utils/errorHandler.js')['apiCall']
+  const apiRequest: typeof import('./resources/js/utils/api.js')['apiRequest']
   const asyncComputed: typeof import('@vueuse/core')['asyncComputed']
   const autoResetRef: typeof import('@vueuse/core')['autoResetRef']
   const avatarText: typeof import('./resources/js/@core/utils/formatters.js')['avatarText']
   const betweenValidator: typeof import('./resources/js/@core/utils/validators.js')['betweenValidator']
+  const buildNavigationRouteMap: typeof import('./resources/js/utils/navigationState.js')['buildNavigationRouteMap']
+  const capitalize: typeof import('./resources/js/utils/helpers.js')['capitalize']
   const checkOriginAllowed: typeof import('./resources/js/utils/corsHelper.js')['checkOriginAllowed']
   const checkServiceWorkerAuth: typeof import('./resources/js/utils/service-worker-setup.js')['checkServiceWorkerAuth']
+  const clearNavigationState: typeof import('./resources/js/utils/navigationState.js')['clearNavigationState']
+  const clearNavigationTestState: typeof import('./resources/js/utils/navigationTest.js')['clearNavigationTestState']
+  const compareFingerprints: typeof import('./resources/js/utils/fingerprint.js')['compareFingerprints']
   const computed: typeof import('vue')['computed']
   const computedAsync: typeof import('@vueuse/core')['computedAsync']
   const computedEager: typeof import('@vueuse/core')['computedEager']
@@ -42,35 +51,50 @@ declare global {
   const createUnrefFn: typeof import('@vueuse/core')['createUnrefFn']
   const createUrl: typeof import('./resources/js/@core/composable/createUrl.js')['createUrl']
   const customRef: typeof import('vue')['customRef']
+  const debounce: typeof import('./resources/js/utils/helpers.js')['debounce']
   const debouncedRef: typeof import('@vueuse/core')['debouncedRef']
   const debouncedWatch: typeof import('@vueuse/core')['debouncedWatch']
   const defineAsyncComponent: typeof import('vue')['defineAsyncComponent']
   const defineComponent: typeof import('vue')['defineComponent']
   const definePage: typeof import('unplugin-vue-router/runtime')['definePage']
   const defineStore: typeof import('pinia')['defineStore']
+  const del: typeof import('./resources/js/utils/api.js')['del']
   const eagerComputed: typeof import('@vueuse/core')['eagerComputed']
   const effectScope: typeof import('vue')['effectScope']
   const emailValidator: typeof import('./resources/js/@core/utils/validators.js')['emailValidator']
   const errorHandler: typeof import('./resources/js/utils/errorHandler.js')['default']
+  const exposeTestingFunctions: typeof import('./resources/js/utils/navigationTest.js')['exposeTestingFunctions']
   const extendRef: typeof import('@vueuse/core')['extendRef']
+  const findActiveNavigationItem: typeof import('./resources/js/utils/navigationUtils.js')['findActiveNavigationItem']
+  const fingerprint: typeof import('./resources/js/utils/fingerprint.js')['default']
   const formatDate: typeof import('./resources/js/@core/utils/formatters.js')['formatDate']
   const formatDateToMonthShort: typeof import('./resources/js/@core/utils/formatters.js')['formatDateToMonthShort']
+  const formatNumber: typeof import('./resources/js/utils/helpers.js')['formatNumber']
   const formatValidationErrors: typeof import('./resources/js/utils/errorHandler.js')['formatValidationErrors']
+  const generateId: typeof import('./resources/js/utils/helpers.js')['generateId']
+  const get: typeof import('./resources/js/utils/api.js')['get']
+  const getActiveNavItem: typeof import('./resources/js/utils/navigationState.js')['getActiveNavItem']
   const getActivePinia: typeof import('pinia')['getActivePinia']
+  const getBrowserFingerprint: typeof import('./resources/js/utils/fingerprint.js')['getBrowserFingerprint']
   const getCurrentInstance: typeof import('vue')['getCurrentInstance']
   const getCurrentScope: typeof import('vue')['getCurrentScope']
+  const getDefaultDashboardRoute: typeof import('./resources/js/utils/navigationUtils.js')['getDefaultDashboardRoute']
   const getErrorType: typeof import('./resources/js/utils/errorHandler.js')['getErrorType']
   const getUserFriendlyErrorMessage: typeof import('./resources/js/utils/errorHandler.js')['getUserFriendlyErrorMessage']
   const h: typeof import('vue')['h']
   const handleApiError: typeof import('./resources/js/utils/errorHandler.js')['handleApiError']
   const hexToRgb: typeof import('./resources/js/@core/utils/colorConverter.js')['hexToRgb']
   const ignorableWatch: typeof import('@vueuse/core')['ignorableWatch']
+  const initNavigationState: typeof import('./resources/js/utils/navigationState.js')['initNavigationState']
   const inject: typeof import('vue')['inject']
   const injectLocal: typeof import('@vueuse/core')['injectLocal']
   const integerValidator: typeof import('./resources/js/@core/utils/validators.js')['integerValidator']
   const isDefined: typeof import('@vueuse/core')['isDefined']
   const isEmpty: typeof import('./resources/js/@core/utils/helpers.js')['isEmpty']
   const isEmptyArray: typeof import('./resources/js/@core/utils/helpers.js')['isEmptyArray']
+  const isEnhancedNavGroupActive: typeof import('./resources/js/utils/navigationUtils.js')['isEnhancedNavGroupActive']
+  const isEnhancedNavLinkActive: typeof import('./resources/js/utils/navigationUtils.js')['isEnhancedNavLinkActive']
+  const isNavItemActive: typeof import('./resources/js/utils/navigationState.js')['isNavItemActive']
   const isNullOrUndefined: typeof import('./resources/js/@core/utils/helpers.js')['isNullOrUndefined']
   const isObject: typeof import('./resources/js/@core/utils/helpers.js')['isObject']
   const isProxy: typeof import('vue')['isProxy']
@@ -92,6 +116,11 @@ declare global {
   const mapStores: typeof import('pinia')['mapStores']
   const mapWritableState: typeof import('pinia')['mapWritableState']
   const markRaw: typeof import('vue')['markRaw']
+  const matchNavLinkToCurrentPath: typeof import('./resources/js/utils/navigationUtils.js')['matchNavLinkToCurrentPath']
+  const monitorNavigationState: typeof import('./resources/js/utils/navigationTest.js')['monitorNavigationState']
+  const navigationDebugger: typeof import('./resources/js/utils/navigationDebug.js')['navigationDebugger']
+  const navigationManager: typeof import('./resources/js/utils/navigationManager.js')['navigationManager']
+  const navigationStateManager: typeof import('./resources/js/utils/navigationState.js')['navigationStateManager']
   const nextTick: typeof import('vue')['nextTick']
   const notifyLoginToServiceWorker: typeof import('./resources/js/utils/service-worker-setup.js')['notifyLoginToServiceWorker']
   const notifyLogoutToServiceWorker: typeof import('./resources/js/utils/service-worker-setup.js')['notifyLogoutToServiceWorker']
@@ -116,11 +145,15 @@ declare global {
   const onUpdated: typeof import('vue')['onUpdated']
   const onWatcherCleanup: typeof import('vue')['onWatcherCleanup']
   const paginationMeta: typeof import('./resources/js/utils/paginationMeta.js')['paginationMeta']
+  const parseCurrentUrl: typeof import('./resources/js/utils/navigationUtils.js')['parseCurrentUrl']
   const passwordValidator: typeof import('./resources/js/@core/utils/validators.js')['passwordValidator']
   const pausableWatch: typeof import('@vueuse/core')['pausableWatch']
+  const performanceMonitor: typeof import('./resources/js/utils/performanceMonitor.js')['default']
+  const post: typeof import('./resources/js/utils/api.js')['post']
   const prefixWithPlus: typeof import('./resources/js/@core/utils/formatters.js')['prefixWithPlus']
   const provide: typeof import('vue')['provide']
   const provideLocal: typeof import('@vueuse/core')['provideLocal']
+  const put: typeof import('./resources/js/utils/api.js')['put']
   const reactify: typeof import('@vueuse/core')['reactify']
   const reactifyObject: typeof import('@vueuse/core')['reactifyObject']
   const reactive: typeof import('vue')['reactive']
@@ -128,6 +161,7 @@ declare global {
   const reactiveOmit: typeof import('@vueuse/core')['reactiveOmit']
   const reactivePick: typeof import('@vueuse/core')['reactivePick']
   const readonly: typeof import('vue')['readonly']
+  const recoverNavigationState: typeof import('./resources/js/utils/navigationState.js')['recoverNavigationState']
   const ref: typeof import('vue')['ref']
   const refAutoReset: typeof import('@vueuse/core')['refAutoReset']
   const refDebounced: typeof import('@vueuse/core')['refDebounced']
@@ -139,32 +173,44 @@ declare global {
   const registerServiceWorker: typeof import('./resources/js/utils/service-worker-setup.js')['registerServiceWorker']
   const requiredValidator: typeof import('./resources/js/@core/utils/validators.js')['requiredValidator']
   const resolveComponent: typeof import('vue')['resolveComponent']
+  const resolveEnhancedNavLinkRouteName: typeof import('./resources/js/utils/navigationUtils.js')['resolveEnhancedNavLinkRouteName']
   const resolveRef: typeof import('@vueuse/core')['resolveRef']
   const resolveUnref: typeof import('@vueuse/core')['resolveUnref']
   const resolveVuetifyTheme: typeof import('./resources/js/@core/utils/vuetify.js')['resolveVuetifyTheme']
   const rgbaToHex: typeof import('./resources/js/@core/utils/colorConverter.js')['rgbaToHex']
+  const setActiveNavigation: typeof import('./resources/js/utils/navigationState.js')['setActiveNavigation']
   const setActivePinia: typeof import('pinia')['setActivePinia']
   const setMapStoreSuffix: typeof import('pinia')['setMapStoreSuffix']
   const setupMessaging: typeof import('./resources/js/utils/service-worker-setup.js')['setupMessaging']
   const shallowReactive: typeof import('vue')['shallowReactive']
   const shallowReadonly: typeof import('vue')['shallowReadonly']
   const shallowRef: typeof import('vue')['shallowRef']
+  const simulatePageReload: typeof import('./resources/js/utils/navigationTest.js')['simulatePageReload']
   const storeToRefs: typeof import('pinia')['storeToRefs']
   const syncRef: typeof import('@vueuse/core')['syncRef']
   const syncRefs: typeof import('@vueuse/core')['syncRefs']
   const templateRef: typeof import('@vueuse/core')['templateRef']
+  const testAllRouteMatching: typeof import('./resources/js/utils/navigationTest.js')['testAllRouteMatching']
   const testApiConnectivity: typeof import('./resources/js/utils/errorHandler.js')['testApiConnectivity']
   const testCorsConnection: typeof import('./resources/js/utils/corsHelper.js')['testCorsConnection']
   const testCorsWithAuth: typeof import('./resources/js/utils/corsHelper.js')['testCorsWithAuth']
+  const testNavigationLoading: typeof import('./resources/js/utils/navigationTest.js')['testNavigationLoading']
+  const testNavigationRecovery: typeof import('./resources/js/utils/navigationTest.js')['testNavigationRecovery']
+  const testNavigationRoutes: typeof import('./resources/js/utils/navigationTest.js')['testNavigationRoutes']
   const testPreflightRequest: typeof import('./resources/js/utils/corsHelper.js')['testPreflightRequest']
+  const testRouteMatching: typeof import('./resources/js/utils/navigationTest.js')['testRouteMatching']
+  const testRouteNavigation: typeof import('./resources/js/utils/navigationTest.js')['testRouteNavigation']
+  const testRouteResolution: typeof import('./resources/js/utils/navigationTest.js')['testRouteResolution']
   const throttledRef: typeof import('@vueuse/core')['throttledRef']
   const throttledWatch: typeof import('@vueuse/core')['throttledWatch']
   const toRaw: typeof import('vue')['toRaw']
   const toReactive: typeof import('@vueuse/core')['toReactive']
   const toRef: typeof import('vue')['toRef']
   const toRefs: typeof import('vue')['toRefs']
+  const toSnakeCase: typeof import('./resources/js/utils/helpers.js')['toSnakeCase']
   const toValue: typeof import('vue')['toValue']
   const triggerRef: typeof import('vue')['triggerRef']
+  const truncateText: typeof import('./resources/js/utils/helpers.js')['truncateText']
   const tryOnBeforeMount: typeof import('@vueuse/core')['tryOnBeforeMount']
   const tryOnBeforeUnmount: typeof import('@vueuse/core')['tryOnBeforeUnmount']
   const tryOnMounted: typeof import('@vueuse/core')['tryOnMounted']
@@ -225,9 +271,11 @@ declare global {
   const useDeviceMotion: typeof import('@vueuse/core')['useDeviceMotion']
   const useDeviceOrientation: typeof import('@vueuse/core')['useDeviceOrientation']
   const useDevicePixelRatio: typeof import('@vueuse/core')['useDevicePixelRatio']
+  const useDevices: typeof import('./resources/js/composables/useDevices.js')['default']
   const useDevicesList: typeof import('@vueuse/core')['useDevicesList']
   const useDisplayMedia: typeof import('@vueuse/core')['useDisplayMedia']
   const useDocumentVisibility: typeof import('@vueuse/core')['useDocumentVisibility']
+  const useDomainOperations: typeof import('./resources/js/composables/useDomainOperations.js')['useDomainOperations']
   const useDraggable: typeof import('@vueuse/core')['useDraggable']
   const useDropZone: typeof import('@vueuse/core')['useDropZone']
   const useElementBounding: typeof import('@vueuse/core')['useElementBounding']
@@ -235,6 +283,7 @@ declare global {
   const useElementHover: typeof import('@vueuse/core')['useElementHover']
   const useElementSize: typeof import('@vueuse/core')['useElementSize']
   const useElementVisibility: typeof import('@vueuse/core')['useElementVisibility']
+  const useEnhancedNavigation: typeof import('./resources/js/utils/navigationUtils.js')['useEnhancedNavigation']
   const useErrorHandler: typeof import('./resources/js/composables/useErrorHandler.js')['useErrorHandler']
   const useEventBus: typeof import('@vueuse/core')['useEventBus']
   const useEventListener: typeof import('@vueuse/core')['useEventListener']
@@ -278,6 +327,7 @@ declare global {
   const useMouseInElement: typeof import('@vueuse/core')['useMouseInElement']
   const useMousePressed: typeof import('@vueuse/core')['useMousePressed']
   const useMutationObserver: typeof import('@vueuse/core')['useMutationObserver']
+  const useNavigationManager: typeof import('./resources/js/utils/navigationManager.js')['useNavigationManager']
   const useNavigatorLanguage: typeof import('@vueuse/core')['useNavigatorLanguage']
   const useNetwork: typeof import('@vueuse/core')['useNetwork']
   const useNow: typeof import('@vueuse/core')['useNow']
@@ -387,12 +437,12 @@ import { UnwrapRef } from 'vue'
 declare module 'vue' {
   interface GlobalComponents {}
   interface ComponentCustomProperties {
+    readonly $api: UnwrapRef<typeof import('./resources/js/utils/api.js')['$api']>
     readonly COOKIE_MAX_AGE_1_YEAR: UnwrapRef<typeof import('./resources/js/utils/constants.js')['COOKIE_MAX_AGE_1_YEAR']>
     readonly EffectScope: UnwrapRef<typeof import('vue')['EffectScope']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
     readonly alphaDashValidator: UnwrapRef<typeof import('./resources/js/@core/utils/validators.js')['alphaDashValidator']>
     readonly alphaValidator: UnwrapRef<typeof import('./resources/js/@core/utils/validators.js')['alphaValidator']>
-    readonly apiCall: UnwrapRef<typeof import('./resources/js/utils/api.js')['apiCall']>
     readonly apiCall: UnwrapRef<typeof import('./resources/js/utils/errorHandler.js')['apiCall']>
     readonly asyncComputed: UnwrapRef<typeof import('@vueuse/core')['asyncComputed']>
     readonly autoResetRef: UnwrapRef<typeof import('@vueuse/core')['autoResetRef']>
@@ -400,6 +450,7 @@ declare module 'vue' {
     readonly betweenValidator: UnwrapRef<typeof import('./resources/js/@core/utils/validators.js')['betweenValidator']>
     readonly checkOriginAllowed: UnwrapRef<typeof import('./resources/js/utils/corsHelper.js')['checkOriginAllowed']>
     readonly checkServiceWorkerAuth: UnwrapRef<typeof import('./resources/js/utils/service-worker-setup.js')['checkServiceWorkerAuth']>
+    readonly compareFingerprints: UnwrapRef<typeof import('./resources/js/utils/fingerprint.js')['compareFingerprints']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>
     readonly computedAsync: UnwrapRef<typeof import('@vueuse/core')['computedAsync']>
     readonly computedEager: UnwrapRef<typeof import('@vueuse/core')['computedEager']>
@@ -434,10 +485,12 @@ declare module 'vue' {
     readonly emailValidator: UnwrapRef<typeof import('./resources/js/@core/utils/validators.js')['emailValidator']>
     readonly errorHandler: UnwrapRef<typeof import('./resources/js/utils/errorHandler.js')['default']>
     readonly extendRef: UnwrapRef<typeof import('@vueuse/core')['extendRef']>
+    readonly fingerprint: UnwrapRef<typeof import('./resources/js/utils/fingerprint.js')['default']>
     readonly formatDate: UnwrapRef<typeof import('./resources/js/@core/utils/formatters.js')['formatDate']>
     readonly formatDateToMonthShort: UnwrapRef<typeof import('./resources/js/@core/utils/formatters.js')['formatDateToMonthShort']>
     readonly formatValidationErrors: UnwrapRef<typeof import('./resources/js/utils/errorHandler.js')['formatValidationErrors']>
     readonly getActivePinia: UnwrapRef<typeof import('pinia')['getActivePinia']>
+    readonly getBrowserFingerprint: UnwrapRef<typeof import('./resources/js/utils/fingerprint.js')['getBrowserFingerprint']>
     readonly getCurrentInstance: UnwrapRef<typeof import('vue')['getCurrentInstance']>
     readonly getCurrentScope: UnwrapRef<typeof import('vue')['getCurrentScope']>
     readonly getErrorType: UnwrapRef<typeof import('./resources/js/utils/errorHandler.js')['getErrorType']>
@@ -471,6 +524,7 @@ declare module 'vue' {
     readonly mapStores: UnwrapRef<typeof import('pinia')['mapStores']>
     readonly mapWritableState: UnwrapRef<typeof import('pinia')['mapWritableState']>
     readonly markRaw: UnwrapRef<typeof import('vue')['markRaw']>
+    readonly monitorNavigationState: UnwrapRef<typeof import('./resources/js/utils/navigationTest.js')['monitorNavigationState']>
     readonly nextTick: UnwrapRef<typeof import('vue')['nextTick']>
     readonly notifyLoginToServiceWorker: UnwrapRef<typeof import('./resources/js/utils/service-worker-setup.js')['notifyLoginToServiceWorker']>
     readonly notifyLogoutToServiceWorker: UnwrapRef<typeof import('./resources/js/utils/service-worker-setup.js')['notifyLogoutToServiceWorker']>
@@ -535,6 +589,7 @@ declare module 'vue' {
     readonly testApiConnectivity: UnwrapRef<typeof import('./resources/js/utils/errorHandler.js')['testApiConnectivity']>
     readonly testCorsConnection: UnwrapRef<typeof import('./resources/js/utils/corsHelper.js')['testCorsConnection']>
     readonly testCorsWithAuth: UnwrapRef<typeof import('./resources/js/utils/corsHelper.js')['testCorsWithAuth']>
+    readonly testNavigationLoading: UnwrapRef<typeof import('./resources/js/utils/navigationTest.js')['testNavigationLoading']>
     readonly testPreflightRequest: UnwrapRef<typeof import('./resources/js/utils/corsHelper.js')['testPreflightRequest']>
     readonly throttledRef: UnwrapRef<typeof import('@vueuse/core')['throttledRef']>
     readonly throttledWatch: UnwrapRef<typeof import('@vueuse/core')['throttledWatch']>
