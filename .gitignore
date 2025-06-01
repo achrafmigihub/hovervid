@@ -100,6 +100,3 @@ build/
 *.swp
 *.swo
 *~
-
-# Cursor specific
-.cursor/
