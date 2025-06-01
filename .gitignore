@@ -95,6 +95,11 @@ yarn-error.log
 *.swo
 *~
 
+# Cursor IDE files
+.cursor/
+.cursorrules*
+*.cursor-*
+
 # OS generated files
 .DS_Store
 .DS_Store?
