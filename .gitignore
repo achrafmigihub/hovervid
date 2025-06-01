@@ -95,11 +95,6 @@ yarn-error.log
 *.swo
 *~
 
-# Cursor IDE files
-.cursor/
-.cursorrules*
-*.cursor-*
-
 # OS generated files
 .DS_Store
 .DS_Store?
@@ -137,3 +132,9 @@ debug-*.js
 /public/build
 dist/
 build/
+
+# Cursor IDE files (keep local, don't push to GitHub)
+.cursor*
+cursor-rules/
+.cursor-rules/
+*.cursor
