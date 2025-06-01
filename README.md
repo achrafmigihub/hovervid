@@ -1,182 +1,108 @@
-# HoverVid - Complete Sign Language Video Translation Platform
+# HoverVid - Sign Language Video Translation Platform
 
-A comprehensive full-stack platform that provides sign language video translations for website content through a WordPress plugin and modern Laravel + Vue.js management system.
+HoverVid is a comprehensive platform that provides sign language video translations for website content. The system consists of a Laravel-based management application and a WordPress plugin that enables website owners to make their content accessible through sign language translations.
 
-## 🎯 **Project Overview**
+## Project Overview
 
-HoverVid is a complete accessibility solution that makes website content accessible through sign language translations. The platform consists of three main components:
+This platform enables website owners to add sign language video translations to their websites. Visitors can click on translation icons that appear on text content to view corresponding sign language videos. The system includes domain-based licensing, real-time verification, and a complete management interface.
 
-- **🎨 Laravel + Vue.js Admin Dashboard**: Modern admin panel for domain management, user administration, and system control
-- **🔌 WordPress Plugin**: Client-side plugin that scans website text and provides sign language video translations
-- **🗄️ PostgreSQL Database**: Centralized domain verification, user management, and content storage
+## Project Structure
 
-## 🏗️ **Complete Project Architecture**
+The repository contains two main components:
 
-### **🖥️ Backend System (Laravel + Vue.js)**
-- **Framework**: Laravel 11.x with JWT authentication
-- **Frontend**: Vue.js 3 + Vuetify 3 (Sneat Admin Template)
-- **Build Tools**: Vite + TypeScript for modern development
-- **Authentication**: JWT-based user authentication system
-- **Database**: PostgreSQL with Eloquent ORM
+### Laravel Application (Root Directory)
+The main Laravel application serves as the backend management system and API. It handles domain authorization, user management, subscription tracking, and content management.
 
-### **🔌 WordPress Plugin**
-- **Plugin Name**: HoverVid Sign Language Video Plugin
-- **Compatibility**: WordPress 5.0+ and PHP 8.0+
-- **Architecture**: Object-oriented with centralized verification system
-- **Real-time Control**: Instant enable/disable based on database status
+**Key directories:**
+- `app/` - Laravel application logic, models, controllers
+- `database/` - Database migrations, seeders, and schema
+- `resources/` - Frontend views, Vue.js components, and assets
+- `routes/` - API and web route definitions
+- `config/` - Laravel configuration files
+- `storage/` - File storage and application logs
+- `public/` - Web-accessible files and compiled assets
 
-### **🗄️ Database Layer**
-- **Type**: PostgreSQL
-- **Models**: Users, Domains, Content
-- **Security**: Prepared statements, input validation
-- **Performance**: Optimized queries with proper indexing
+### WordPress Plugin (`hovervid-plugin/`)
+The WordPress plugin that gets installed on client websites to provide the sign language translation functionality.
 
-## 📁 **Project Structure**
+**Plugin structure:**
+- `sign-language-video.php` - Main plugin file with WordPress hooks
+- `includes/` - Core plugin classes and functionality
+  - `class-domain-verifier.php` - Centralized domain verification system
+  - `class-video-player.php` - Main plugin controller
+  - `class-text-processor.php` - Text scanning and processing
+  - `class-api-handler.php` - AJAX endpoints and API communication
+  - `class-database.php` - Database connection and queries
+- `public/` - Frontend assets (CSS, JavaScript)
+  - `css/public-style.css` - Plugin styling
+  - `js/public-script.js` - Main plugin functionality
+  - `js/text-scanner.js` - Text content scanning
+- `assets/` - Plugin icons and media files
 
-```
-HoverVid/
-├── 🎨 Laravel Backend Admin Dashboard
-│   ├── app/
-│   │   ├── Models/
-│   │   │   ├── User.php                 # User management
-│   │   │   ├── Domain.php               # Domain verification system
-│   │   │   └── Content.php              # Content management
-│   │   ├── Http/Controllers/            # API endpoints & web controllers
-│   │   ├── Services/                    # Business logic services
-│   │   └── Repositories/                # Data access layer
-│   ├── resources/
-│   │   ├── js/                          # Vue.js components & pages
-│   │   ├── css/                         # Styling & themes
-│   │   └── views/                       # Blade templates
-│   ├── routes/
-│   │   ├── web.php                      # Web routes
-│   │   └── api.php                      # API endpoints
-│   ├── database/
-│   │   ├── migrations/                  # Database schema
-│   │   └── seeders/                     # Sample data
-│   ├── config/                          # Laravel configuration
-│   ├── composer.json                    # PHP dependencies
-│   ├── package.json                     # Node.js dependencies
-│   └── vite.config.js                   # Frontend build configuration
-│
-├── 🔌 WordPress Plugin
-│   └── hovervid-plugin/
-│       ├── sign-language-video.php      # Main plugin file
-│       ├── includes/
-│       │   ├── class-domain-verifier.php    # Centralized verification
-│       │   ├── class-video-player.php       # Main plugin controller
-│       │   ├── class-text-processor.php     # Text scanning & processing
-│       │   ├── class-api-handler.php        # AJAX endpoints
-│       │   └── class-database.php           # Database connection
-│       ├── public/
-│       │   ├── css/public-style.css         # Plugin styles
-│       │   ├── js/public-script.js          # Main plugin JavaScript
-│       │   └── js/text-scanner.js           # Text scanning functionality
-│       └── assets/
-│           ├── hovervid-icon.svg            # Translation icon
-│           └── hovervid-logo.svg            # Plugin logo
-│
-└── 🗄️ Plugin API
-    └── plugin-api/                      # Additional API endpoints
-```
+### Additional Directories
+- `hovervid/` - Additional project files and utilities
+- `plugin-api/` - Standalone API components
+- `tests/` - Application test suites
+- `vendor/` - Composer dependencies
+- `node_modules/` - NPM dependencies
 
-## 🚀 **Laravel Admin Dashboard Features**
+## How It Works
 
-### **🎨 Modern UI/UX**
-- **Design System**: Sneat Vuetify Admin Template
-- **Responsive**: Mobile-first design approach
-- **Dark/Light Mode**: Theme switching capability
-- **Real-time**: Live data updates and notifications
+### Domain Authorization System
+The platform uses a PostgreSQL database to manage domain authorizations. Each domain must be registered and verified before the WordPress plugin will function. The system checks the `is_verified` column in the domains table to determine if a domain should have access to the plugin functionality.
 
-### **👥 User Management**
-- **Authentication**: JWT-based secure login system
-- **Role-based Access**: Admin, Manager, User roles
-- **User Profiles**: Complete user management interface
-- **Security**: Password hashing, rate limiting
+### WordPress Plugin Functionality
+When installed on a WordPress site, the plugin:
+1. Scans the website content for translatable text
+2. Injects translation icons next to text elements
+3. Provides a floating video player for sign language translations
+4. Continuously verifies domain authorization status
+5. Disables functionality if domain verification is revoked
 
-### **🌐 Domain Management**
-- **Domain Registration**: Add/remove authorized domains
-- **Real-time Control**: Instant plugin enable/disable
-- **Status Monitoring**: Live plugin status tracking
-- **Bulk Operations**: Manage multiple domains efficiently
+### Real-time Verification
+The plugin checks domain verification status every 30 seconds and responds immediately to changes. If a domain's verification is revoked, the plugin automatically disables all functionality and shows appropriate messages to users.
 
-### **📊 Analytics & Reporting**
-- **Usage Statistics**: Plugin usage analytics
-- **Performance Metrics**: System performance monitoring
-- **User Activity**: Detailed activity logs
-- **Export Features**: Data export capabilities
+## Database Schema
 
-## 🔌 **WordPress Plugin Features**
+The system uses PostgreSQL with the following key tables:
 
-### **🎯 Core Functionality**
-- **Text Scanner**: Automatically detects translatable text content
-- **Video Player**: Floating video player for sign language translations
-- **Domain Verification**: Centralized verification system
-- **Real-time Control**: Instant enable/disable based on database status
+**domains table:**
+- `id` - Primary key
+- `domain` - Website domain name
+- `is_verified` - Main control column (boolean)
+- `is_active` - Legacy compatibility (boolean)
+- `user_id` - Associated user
+- `platform` - Platform type (wordpress, etc.)
+- `plugin_status` - Current plugin status
+- `created_at`, `updated_at` - Timestamps
 
-### **💻 User Experience**
-- **Translation Icons**: Hover-activated icons on text elements
-- **Floating Video Player**: Draggable, resizable video interface
-- **Smooth Interactions**: Professional UI/UX design
-- **Mobile Support**: Touch-friendly interactions
+**users table:**
+- Standard Laravel user authentication
+- Links to domain ownership
 
-### **🔒 Security & Performance**
-- **Nonce verification** for all AJAX requests
-- **Domain authorization** required for activation
-- **SQL injection protection** with prepared statements
-- **Lazy loading** of translation icons
-- **Throttled mutations** observer for dynamic content
+**subscriptions table:**
+- Manages user subscriptions and billing
+- Controls domain access permissions
 
-## 🛠️ **Installation & Setup**
+## Installation and Setup
 
-### **⚙️ System Requirements**
-- **Backend**: PHP 8.2+, Node.js 18+, PostgreSQL 13+
-- **WordPress**: 5.0+, PHP 8.0+
-- **Web Server**: Apache/Nginx with SSL support
+### Laravel Application Setup
+1. Clone the repository
+2. Install dependencies: `composer install && npm install`
+3. Configure environment: Copy `.env.example` to `.env` and update database credentials
+4. Run migrations: `php artisan migrate`
+5. Build assets: `npm run build`
+6. Start the application: `php artisan serve`
 
-### **🎨 Laravel Backend Setup**
+### WordPress Plugin Installation
+1. Copy the `hovervid-plugin` directory to the WordPress `wp-content/plugins/` folder
+2. Update database credentials in `hovervid-plugin/includes/class-database.php`
+3. Activate the plugin through the WordPress admin interface
+4. The plugin will automatically verify domain authorization
 
-1. **Clone & Install Dependencies**
-```bash
-git clone https://github.com/your-username/hovervid.git
-cd hovervid
-composer install
-npm install
-```
+### Database Configuration
+Update the database connection settings in the plugin's database class:
 
-2. **Environment Configuration**
-```bash
-cp .env.example .env
-php artisan key:generate
-```
-
-3. **Database Setup**
-```bash
-# Configure .env with PostgreSQL credentials
-php artisan migrate
-php artisan db:seed
-```
-
-4. **Development Server**
-```bash
-# Start all services (Laravel + Vite + Queue + Logs)
-composer run dev
-
-# Or manually:
-php artisan serve
-npm run dev
-```
-
-### **🔌 WordPress Plugin Setup**
-
-1. **Plugin Installation**
-```bash
-# Upload to WordPress
-cp -r hovervid-plugin/ /path/to/wordpress/wp-content/plugins/
-```
-
-2. **Database Configuration**
-Update database credentials in `hovervid-plugin/includes/class-database.php`:
 ```php
 private $host = 'your-database-host';
 private $database = 'your-database-name';
@@ -184,221 +110,75 @@ private $username = 'your-username';
 private $password = 'your-password';
 ```
 
-3. **Plugin Activation**
-- Activate plugin in WordPress admin
-- Plugin automatically connects to verification database
+## Usage
 
-## 🔄 **Development Workflow**
+### For Administrators
+1. Access the Laravel admin panel to manage domains and users
+2. Add authorized domains to the database
+3. Control plugin functionality by updating the `is_verified` column
+4. Monitor usage and manage subscriptions
 
-### **🎨 Frontend Development (Vue.js)**
-```bash
-npm run dev          # Development server with hot reload
-npm run build        # Production build
-npm run lint         # ESLint code formatting
-```
+### For Website Owners
+1. Install the WordPress plugin on your domain
+2. Contact the administrator to authorize your domain
+3. Once verified, the plugin automatically activates
+4. Visitors will see translation icons on text content
 
-### **🖥️ Backend Development (Laravel)**
-```bash
-php artisan serve    # Development server
-php artisan migrate  # Run database migrations
-php artisan queue:work  # Process background jobs
-```
+### Domain Management
+Control plugin functionality through database updates:
 
-### **🧪 Testing**
-```bash
-# Laravel tests
-php artisan test
-
-# WordPress plugin testing
-# Test domain verification
-$verifier = SLVP_Domain_Verifier::get_instance();
-echo $verifier->should_plugin_work() ? 'ENABLED' : 'DISABLED';
-```
-
-## 🔒 **Security Implementation**
-
-### **🎨 Laravel Security**
-- **JWT Authentication**: Secure token-based authentication
-- **CSRF Protection**: Cross-site request forgery protection
-- **SQL Injection Prevention**: Eloquent ORM with prepared statements
-- **Rate Limiting**: API rate limiting and throttling
-- **Input Validation**: Comprehensive request validation
-
-### **🔌 WordPress Plugin Security**
-- **Nonce Verification**: WordPress nonce system for AJAX
-- **Domain Authorization**: Strict domain verification
-- **Data Sanitization**: Input sanitization for all user data
-- **Capability Checks**: WordPress capability verification
-
-## 📊 **Database Schema**
-
-### **👥 Users Table**
-```sql
-users (
-    id: bigint PRIMARY KEY,
-    name: varchar(255),
-    email: varchar(255) UNIQUE,
-    email_verified_at: timestamp,
-    password: varchar(255),
-    remember_token: varchar(100),
-    created_at: timestamp,
-    updated_at: timestamp
-)
-```
-
-### **🌐 Domains Table**
-```sql
-domains (
-    id: bigint PRIMARY KEY,
-    domain: text UNIQUE,
-    is_verified: boolean,      -- Main control column
-    is_active: boolean,        -- Legacy compatibility
-    user_id: bigint REFERENCES users(id),
-    platform: text,
-    plugin_status: text,
-    created_at: timestamp,
-    updated_at: timestamp
-)
-```
-
-### **📝 Content Table**
-```sql
-content (
-    id: bigint PRIMARY KEY,
-    domain_id: bigint REFERENCES domains(id),
-    content_text: text,
-    video_url: text,
-    status: varchar(50),
-    created_at: timestamp,
-    updated_at: timestamp
-)
-```
-
-## 🎮 **Usage**
-
-### **👨‍💼 For Administrators (Laravel Dashboard)**
-1. **Login**: Access admin dashboard at `http://your-domain/admin`
-2. **Domain Management**: Add/remove authorized domains
-3. **User Management**: Manage user accounts and permissions
-4. **Analytics**: Monitor plugin usage and performance
-5. **Real-time Control**: Enable/disable plugins instantly
-
-### **🌐 For Website Owners (WordPress)**
-1. **Install Plugin**: Upload and activate HoverVid plugin
-2. **Authorization**: Contact administrator for domain authorization
-3. **Automatic Activation**: Plugin activates once domain is verified
-4. **Content Access**: Visitors see translation icons on text content
-
-### **🎯 Domain Control (Database)**
 ```sql
 -- Enable plugin for a domain
 UPDATE domains SET is_verified = true WHERE domain = 'example.com';
 
--- Disable plugin for a domain  
+-- Disable plugin for a domain
 UPDATE domains SET is_verified = false WHERE domain = 'example.com';
-
--- Check domain status
-SELECT domain, is_verified, plugin_status FROM domains WHERE domain = 'example.com';
 ```
 
-## 🚨 **Error Handling & Monitoring**
+## Technical Implementation
 
-### **🎨 Laravel Error Handling**
-- **Exception Handling**: Comprehensive error logging
-- **API Error Responses**: Standardized JSON error responses
-- **Database Connection**: Graceful database failure handling
-- **Queue Monitoring**: Background job failure notifications
+### Centralized Verification System
+The plugin uses a singleton pattern for domain verification to ensure consistency across all components. The `SLVP_Domain_Verifier` class serves as the single source of truth for domain authorization status.
 
-### **🔌 WordPress Plugin Error Handling**
-- **Database Unavailable**: Plugin enters "degraded mode"
-- **Domain Authorization**: Clear error messages for unauthorized domains
-- **Graceful Degradation**: No fatal errors, WordPress continues functioning
-- **Admin Notifications**: User-friendly admin notices
+### Error Handling
+The system includes comprehensive error handling:
+- Graceful database connection failures
+- User-friendly error messages
+- Automatic recovery when services become available
+- No fatal errors that would break WordPress sites
 
-## 🎨 **Technology Stack**
+### Performance Optimization
+- Efficient DOM scanning with performance limits
+- Batched processing for large pages
+- Throttled mutation observers for dynamic content
+- Cached verification with periodic refresh
 
-### **🖥️ Backend Stack**
-- **🔧 PHP 8.2+**: Modern PHP with latest features
-- **🎯 Laravel 11.x**: Robust web application framework
-- **🔐 JWT Authentication**: Secure token-based authentication
-- **🗄️ PostgreSQL**: Reliable relational database
-- **⚡ Redis**: Caching and session storage
+### Security Features
+- Nonce verification for all AJAX requests
+- SQL injection protection with prepared statements
+- Domain authorization required for all functionality
+- Input sanitization and validation
 
-### **🎨 Frontend Stack**
-- **⚛️ Vue.js 3**: Progressive JavaScript framework
-- **🎨 Vuetify 3**: Material Design component framework
-- **⚡ Vite**: Fast build tool and development server
-- **📘 TypeScript**: Type-safe JavaScript development
-- **🎯 Pinia**: State management for Vue.js
+## Browser Support
 
-### **🔌 WordPress Integration**
-- **🔌 WordPress 5.0+**: Latest WordPress compatibility
-- **⚡ AJAX**: Real-time frontend-backend communication
-- **🎨 CSS3/JavaScript**: Modern web technologies
-- **📱 Responsive Design**: Mobile-first approach
+The plugin supports modern browsers including Chrome, Firefox, Safari, and Edge. It includes mobile support for iOS Safari and Chrome Mobile. Video content uses MP4 format with H.264 encoding for broad compatibility.
 
-## 🌐 **Browser Support**
+## Development
 
-- **✅ Modern Browsers**: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
-- **📱 Mobile Support**: iOS Safari, Chrome Mobile, Samsung Internet
-- **🎥 Video Formats**: MP4 with H.264 encoding
-- **⚡ JavaScript**: ES6+ features with polyfills
+### Local Development
+For local development without database access, the plugin enters a "degraded mode" where it shows admin warnings but doesn't break the WordPress site. This allows developers to work on the plugin without requiring the full backend infrastructure.
 
-## 🚀 **Performance Optimization**
+### Testing
+The system includes comprehensive error handling that prevents fatal errors during development. When the database is unavailable, the plugin displays appropriate admin notices and safely disables functionality.
 
-### **🎨 Laravel Performance**
-- **🔄 Redis Caching**: Database query caching
-- **⚡ Queue System**: Background job processing
-- **🗜️ Asset Optimization**: CSS/JS minification and compression
-- **📊 Database Indexing**: Optimized database queries
+## Support
 
-### **🔌 WordPress Plugin Performance**
-- **⏳ Lazy Loading**: On-demand resource loading
-- **🔄 Batched Processing**: Efficient large page handling
-- **⚡ Throttled Observers**: Performance-optimized DOM scanning
-- **💾 Cached Verification**: 30-second verification caching
+For technical support or domain authorization requests, contact the system administrator with:
+- Your domain name
+- WordPress version
+- Plugin version
+- Detailed description of any issues
 
-## 🎯 **Key Achievements**
+## License
 
-✅ **Complete Full-Stack Platform** - Laravel + Vue.js + WordPress integration
-✅ **Modern Admin Dashboard** - Professional UI with real-time capabilities  
-✅ **Centralized Domain Control** - Single source of truth for verification
-✅ **Real-time Plugin Management** - Instant enable/disable from dashboard
-✅ **Graceful Error Handling** - No fatal errors, professional degradation
-✅ **Security Hardened** - JWT auth, CSRF protection, input validation
-✅ **Performance Optimized** - Caching, lazy loading, efficient processing
-✅ **Mobile Responsive** - Touch-friendly, mobile-first design
-✅ **Production Ready** - Docker support, comprehensive documentation
-
-## 📚 **Documentation & Support**
-
-- **📖 API Documentation**: Complete API endpoint documentation
-- **🎥 Video Tutorials**: Step-by-step setup and usage guides
-- **🐛 Issue Tracking**: GitHub Issues for bug reports and features
-- **💬 Community Support**: Discussion forums and chat support
-- **📧 Professional Support**: Enterprise support available
-
-## 🤝 **Contributing**
-
-1. **Fork the Repository**
-2. **Create Feature Branch**: `git checkout -b feature/amazing-feature`
-3. **Commit Changes**: `git commit -m 'Add amazing feature'`
-4. **Push to Branch**: `git push origin feature/amazing-feature`
-5. **Open Pull Request**
-
-## 📄 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 **Support & Contact**
-
-- **🌐 Website**: [hovervid.com](https://hovervid.com)
-- **📧 Email**: support@hovervid.com
-- **💬 Discord**: [HoverVid Community](https://discord.gg/hovervid)
-- **🐛 Issues**: [GitHub Issues](https://github.com/your-username/hovervid/issues)
-
----
-
-**🎯 HoverVid - Making the web accessible through sign language technology** 
-
-*Empowering digital inclusion with modern full-stack solutions* 🚀
+This project is licensed under the GPL v2 or later, following WordPress plugin licensing standards.
