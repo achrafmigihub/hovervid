@@ -35,6 +35,26 @@ export const useAuthStore = defineStore('auth', {
     async init() {
       console.log('Auth store init started')
       try {
+        // Check if history was recently cleared (indicates recent logout)
+        const historyCleared = localStorage.getItem('historyCleared')
+        const historyClearTime = localStorage.getItem('historyClearTime')
+        
+        if (historyCleared === 'true') {
+          const clearTime = historyClearTime ? parseInt(historyClearTime) : 0
+          const oneHourAgo = Date.now() - (60 * 60 * 1000)
+          
+          if (clearTime > oneHourAgo) {
+            console.log('History was cleared recently due to logout, skipping session recovery')
+            this.sessionInitialized = true
+            this.clearAuthData()
+            return
+          } else {
+            // Clear time was more than an hour ago, remove the flags
+            localStorage.removeItem('historyCleared')
+            localStorage.removeItem('historyClearTime')
+          }
+        }
+        
         // Check if user has explicitly logged out recently
         const userLoggedOut = localStorage.getItem('userLoggedOut')
         const logoutTimestamp = localStorage.getItem('logoutTimestamp')
@@ -486,8 +506,8 @@ export const useAuthStore = defineStore('auth', {
         // Notify service worker of logout
         notifyLogoutToServiceWorker()
         
-        // Force redirect to login page and prevent back navigation
-        window.history.replaceState(null, '', '/login')
+        // Completely clear browser history to prevent back navigation to authenticated content
+        this.clearBrowserHistory()
         
         return { success: true }
       } catch (error) {
@@ -499,12 +519,46 @@ export const useAuthStore = defineStore('auth', {
         // Notify service worker of logout anyway
         notifyLogoutToServiceWorker()
         
-        // Force redirect to login page
-        window.history.replaceState(null, '', '/login')
+        // Clear browser history even on error
+        this.clearBrowserHistory()
         
         return { success: false, error: error.message }
       } finally {
         this.isLoading = false
+      }
+    },
+
+    // New method to completely clear browser history and prevent back navigation
+    clearBrowserHistory() {
+      try {
+        // First, replace the current state to prevent back navigation
+        window.history.replaceState(null, '', '/login')
+        
+        // Clear the entire browser history by replacing all entries
+        // This ensures no authenticated pages remain in history
+        let historyLength = window.history.length
+        
+        // Use a more aggressive approach to clear history
+        // Replace multiple history entries to ensure authenticated pages are cleared
+        for (let i = 0; i < historyLength; i++) {
+          window.history.pushState(null, '', '/login')
+        }
+        
+        // Now replace all those entries with a single login page entry
+        window.history.replaceState(null, '', '/login')
+        
+        // Add a special marker to localStorage to indicate history was cleared
+        localStorage.setItem('historyCleared', 'true')
+        localStorage.setItem('historyClearTime', Date.now().toString())
+        
+        // Force navigation to login page
+        window.location.href = '/login'
+        
+        console.log('Browser history cleared and redirected to login')
+      } catch (e) {
+        console.error('Error clearing browser history:', e)
+        // Fallback: just force redirect to login
+        window.location.href = '/login'
       }
     },
 

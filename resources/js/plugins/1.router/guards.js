@@ -63,6 +63,27 @@ export const setupGuards = router => {
     const authStore = useAuthStore()
     const currentRoute = router.currentRoute.value
     
+    // Check if history was recently cleared (indicates recent logout)
+    const historyCleared = localStorage.getItem('historyCleared')
+    const historyClearTime = localStorage.getItem('historyClearTime')
+    
+    if (historyCleared === 'true') {
+      const clearTime = historyClearTime ? parseInt(historyClearTime) : 0
+      const oneHourAgo = Date.now() - (60 * 60 * 1000)
+      
+      if (clearTime > oneHourAgo) {
+        // History was cleared recently due to logout
+        console.log('Detected navigation after history clear (logout), forcing redirect to login')
+        event.preventDefault()
+        window.location.href = '/login'
+        return
+      } else {
+        // Clear time was more than an hour ago, remove the flags
+        localStorage.removeItem('historyCleared')
+        localStorage.removeItem('historyClearTime')
+      }
+    }
+    
     // Check if user has explicitly logged out recently
     const userLoggedOut = localStorage.getItem('userLoggedOut')
     const logoutTimestamp = localStorage.getItem('logoutTimestamp')
@@ -74,7 +95,8 @@ export const setupGuards = router => {
       if (logoutTime > oneHourAgo) {
         // User logged out recently, force them to login page
         console.log('Detected navigation after recent logout, redirecting to login')
-        router.replace({ name: 'login' })
+        event.preventDefault()
+        window.location.href = '/login'
         return
       }
     }
@@ -83,7 +105,19 @@ export const setupGuards = router => {
     if (!authStore.isAuthenticated && currentRoute && 
         (currentRoute.meta.requiresAuth || currentRoute.meta.requiredRole)) {
       console.log('Detected popstate navigation to protected route while logged out')
+      event.preventDefault()
       router.push({ name: 'login' })
+    }
+    
+    // Additional security check: if we're accessing any dashboard route without authentication
+    if (!authStore.isAuthenticated && currentRoute && 
+        (currentRoute.path.includes('/dashboard') || 
+         currentRoute.path.includes('/admin') || 
+         currentRoute.path.includes('/client'))) {
+      console.log('Detected unauthorized access to dashboard route via popstate')
+      event.preventDefault()
+      window.location.href = '/login'
+      return
     }
     
     // If user is authenticated and trying to access login page via back button, redirect to dashboard
@@ -126,6 +160,27 @@ export const setupGuards = router => {
       toMeta: to.meta
     })
     
+    // Check if history was recently cleared (indicates recent logout)
+    const historyCleared = localStorage.getItem('historyCleared')
+    const historyClearTime = localStorage.getItem('historyClearTime')
+    
+    if (historyCleared === 'true') {
+      const clearTime = historyClearTime ? parseInt(historyClearTime) : 0
+      const oneHourAgo = Date.now() - (60 * 60 * 1000)
+      
+      if (clearTime > oneHourAgo) {
+        // History was cleared recently due to logout, only allow auth pages
+        if (to.name !== 'login' && to.name !== 'register' && to.name !== 'forgot-password') {
+          console.log('History was cleared recently (logout), redirecting to login')
+          return { name: 'login' }
+        }
+      } else {
+        // Clear time was more than an hour ago, remove the flags
+        localStorage.removeItem('historyCleared')
+        localStorage.removeItem('historyClearTime')
+      }
+    }
+    
     // Check if user has explicitly logged out recently
     const userLoggedOut = localStorage.getItem('userLoggedOut')
     const logoutTimestamp = localStorage.getItem('logoutTimestamp')
@@ -145,6 +200,15 @@ export const setupGuards = router => {
         localStorage.removeItem('userLoggedOut')
         localStorage.removeItem('logoutTimestamp')
       }
+    }
+    
+    // Additional security check: prevent access to any dashboard/admin/client routes if not authenticated
+    if (!authStore.isAuthenticated && 
+        (to.path.includes('/dashboard') || 
+         to.path.includes('/admin') || 
+         to.path.includes('/client'))) {
+      console.log('Unauthorized access attempt to protected dashboard route')
+      return { name: 'login' }
     }
     
     // Additional check for session validity on each navigation
