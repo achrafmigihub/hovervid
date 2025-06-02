@@ -226,3 +226,4 @@ class SLVP_Domain_Verifier {
         return $this->is_domain_verified() && $this->domain_exists() && !$this->has_error();
     }
 } 
+ 

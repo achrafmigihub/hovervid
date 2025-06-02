@@ -160,6 +160,27 @@ export const setupGuards = router => {
       toMeta: to.meta
     })
     
+    // Check if authentication was recently cleared (indicates recent logout)
+    const authCleared = sessionStorage.getItem('authenticationCleared')
+    const authClearTime = sessionStorage.getItem('authClearTime')
+    
+    if (authCleared === 'true') {
+      const clearTime = authClearTime ? parseInt(authClearTime) : 0
+      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000) // 5 minutes
+      
+      if (clearTime > fiveMinutesAgo) {
+        // Authentication was cleared recently due to logout, only allow auth pages
+        if (to.name !== 'login' && to.name !== 'register' && to.name !== 'forgot-password') {
+          console.log('Authentication was cleared recently (logout), redirecting to login')
+          return { name: 'login' }
+        }
+      } else {
+        // Clear time was more than 5 minutes ago, remove the flags
+        sessionStorage.removeItem('authenticationCleared')
+        sessionStorage.removeItem('authClearTime')
+      }
+    }
+    
     // Check if history was recently cleared (indicates recent logout)
     const historyCleared = localStorage.getItem('historyCleared')
     const historyClearTime = localStorage.getItem('historyClearTime')

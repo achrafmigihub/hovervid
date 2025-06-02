@@ -57,6 +57,20 @@ function slvp_activate_plugin() {
     $domain_status = slvp_check_domain_authorization();
     $current_domain = $_SERVER['HTTP_HOST'] ?? 'unknown';
     
+    // Always try to update plugin status to active via API
+    try {
+        $api_client = SLVP_API_Client::get_instance();
+        $update_result = $api_client->update_status($current_domain, 'active');
+        
+        if ($update_result && $update_result['success']) {
+            error_log("HoverVid Plugin: Status updated to 'active' for domain: {$current_domain}");
+        } else {
+            error_log("HoverVid Plugin: Failed to update status to 'active' for domain: {$current_domain}");
+        }
+    } catch (Exception $e) {
+        error_log('HoverVid Plugin: API status update failed during activation - ' . $e->getMessage());
+    }
+    
     // If domain doesn't exist in database, prevent activation
     if (!isset($domain_status['domain_exists']) || !$domain_status['domain_exists']) {
         // Store the error message
@@ -70,6 +84,14 @@ function slvp_activate_plugin() {
         
         // This is crucial - we're setting a flag that our plugin will check later
         update_option('hovervid_needs_deactivation', 'yes');
+        
+        // Try to update status to inactive since activation failed
+        try {
+            $api_client = SLVP_API_Client::get_instance();
+            $api_client->update_status($current_domain, 'inactive');
+        } catch (Exception $e) {
+            error_log('HoverVid Plugin: Failed to update status to inactive after activation failure');
+        }
         
         // Plugin will be silently deactivated by slvp_handle_unauthorized_domain
         // The "Plugin activated" message will be hidden by slvp_hide_plugin_activated_message
@@ -260,6 +282,32 @@ function slvp_api_error_notice() {
     }
 }
 add_action('admin_notices', 'slvp_api_error_notice');
+
+/**
+ * Plugin deactivation hook - Update plugin status to inactive
+ */
+function slvp_deactivate_plugin() {
+    $current_domain = $_SERVER['HTTP_HOST'] ?? 'unknown';
+    
+    // Update plugin status to inactive via API
+    try {
+        $api_client = SLVP_API_Client::get_instance();
+        $update_result = $api_client->update_status($current_domain, 'inactive');
+        
+        if ($update_result && $update_result['success']) {
+            error_log("HoverVid Plugin: Status updated to 'inactive' for domain: {$current_domain}");
+        } else {
+            error_log("HoverVid Plugin: Failed to update status to 'inactive' for domain: {$current_domain}");
+        }
+    } catch (Exception $e) {
+        error_log('HoverVid Plugin: API status update failed during deactivation - ' . $e->getMessage());
+    }
+    
+    // Clean up any stored options
+    delete_option('hovervid_needs_deactivation');
+    delete_transient('hovervid_activation_error');
+}
+register_deactivation_hook(__FILE__, 'slvp_deactivate_plugin');
 
 // Initialize plugin
 add_action('plugins_loaded', 'slvp_init');

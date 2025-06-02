@@ -57,13 +57,13 @@ Route::group(['prefix' => 'auth', 'middleware' => ['web', \App\Http\Middleware\S
 });
 
 // Protected auth routes
-Route::group(['middleware' => ['web', 'auth:sanctum', \App\Http\Middleware\SessionConfig::class], 'prefix' => 'auth'], function () {
+Route::group(['middleware' => ['web', 'auth:sanctum', \App\Http\Middleware\SessionConfig::class, 'nocache'], 'prefix' => 'auth'], function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [AuthController::class, 'userProfile']);
 });
 
 // Special session-only route for user profile (without token requirement)
-Route::group(['middleware' => ['web', \App\Http\Middleware\SessionConfig::class], 'prefix' => 'auth'], function () {
+Route::group(['middleware' => ['web', \App\Http\Middleware\SessionConfig::class, 'nocache'], 'prefix' => 'auth'], function () {
     Route::get('session-user', [AuthController::class, 'sessionUser']);
 });
 

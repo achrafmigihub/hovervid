@@ -35,6 +35,26 @@ export const useAuthStore = defineStore('auth', {
     async init() {
       console.log('Auth store init started')
       try {
+        // Check if authentication was recently cleared (indicates recent logout)
+        const authCleared = sessionStorage.getItem('authenticationCleared')
+        const authClearTime = sessionStorage.getItem('authClearTime')
+        
+        if (authCleared === 'true') {
+          const clearTime = authClearTime ? parseInt(authClearTime) : 0
+          const fiveMinutesAgo = Date.now() - (5 * 60 * 1000) // 5 minutes
+          
+          if (clearTime > fiveMinutesAgo) {
+            console.log('Authentication was cleared recently due to logout, blocking session recovery')
+            this.sessionInitialized = true
+            this.clearAuthData()
+            return
+          } else {
+            // Clear time was more than 5 minutes ago, remove the flags
+            sessionStorage.removeItem('authenticationCleared')
+            sessionStorage.removeItem('authClearTime')
+          }
+        }
+        
         // Check if history was recently cleared (indicates recent logout)
         const historyCleared = localStorage.getItem('historyCleared')
         const historyClearTime = localStorage.getItem('historyClearTime')
@@ -531,6 +551,10 @@ export const useAuthStore = defineStore('auth', {
     // New method to completely clear browser history and prevent back navigation
     clearBrowserHistory() {
       try {
+        // Set a flag in sessionStorage to block all authenticated page access
+        sessionStorage.setItem('authenticationCleared', 'true')
+        sessionStorage.setItem('authClearTime', Date.now().toString())
+        
         // First, replace the current state to prevent back navigation
         window.history.replaceState(null, '', '/login')
         
@@ -551,6 +575,9 @@ export const useAuthStore = defineStore('auth', {
         localStorage.setItem('historyCleared', 'true')
         localStorage.setItem('historyClearTime', Date.now().toString())
         
+        // Add event listener to prevent back navigation
+        window.addEventListener('popstate', this.preventBackNavigation)
+        
         // Force navigation to login page
         window.location.href = '/login'
         
@@ -558,6 +585,16 @@ export const useAuthStore = defineStore('auth', {
       } catch (e) {
         console.error('Error clearing browser history:', e)
         // Fallback: just force redirect to login
+        window.location.href = '/login'
+      }
+    },
+    
+    // Prevent back navigation after logout
+    preventBackNavigation(event) {
+      const authCleared = sessionStorage.getItem('authenticationCleared')
+      if (authCleared === 'true') {
+        console.log('Preventing back navigation after logout')
+        window.history.pushState(null, '', '/login')
         window.location.href = '/login'
       }
     },
@@ -732,6 +769,13 @@ export const useAuthStore = defineStore('auth', {
       // Clear any logout flags since user is now authenticated
       localStorage.removeItem('userLoggedOut')
       localStorage.removeItem('logoutTimestamp')
+      localStorage.removeItem('historyCleared')
+      localStorage.removeItem('historyClearTime')
+      sessionStorage.removeItem('authenticationCleared')
+      sessionStorage.removeItem('authClearTime')
+      
+      // Remove back navigation prevention listener if it exists
+      window.removeEventListener('popstate', this.preventBackNavigation)
       
       // Initialize abilities
       this.initializeAbilities()
@@ -849,6 +893,24 @@ export const useAuthStore = defineStore('auth', {
     async recoverSessionAuth() {
       console.log('Attempting to recover session authentication')
       
+      // CRITICAL: Check if user has explicitly logged out recently
+      const userLoggedOut = localStorage.getItem('userLoggedOut')
+      const logoutTimestamp = localStorage.getItem('logoutTimestamp')
+      
+      if (userLoggedOut === 'true') {
+        const logoutTime = logoutTimestamp ? parseInt(logoutTimestamp) : 0
+        const oneHourAgo = Date.now() - (60 * 60 * 1000)
+        
+        if (logoutTime > oneHourAgo) {
+          console.log('User logged out recently, blocking session recovery')
+          return false
+        } else {
+          // Logout was more than an hour ago, clear the flags
+          localStorage.removeItem('userLoggedOut')
+          localStorage.removeItem('logoutTimestamp')
+        }
+      }
+      
       try {
         // Generate current fingerprint for validation
         let fingerprint = null;
@@ -896,6 +958,26 @@ export const useAuthStore = defineStore('auth', {
         // Handle different error types appropriately
         if (error.response) {
           const status = error.response.status
+          const responseData = error.response.data
+          
+          // Handle session termination errors from backend
+          if (responseData && responseData.code === 'SESSION_TERMINATED') {
+            console.log('Session was terminated on the server (user logged out)')
+            // Set logout flags to prevent future session recovery attempts
+            localStorage.setItem('userLoggedOut', 'true')
+            localStorage.setItem('logoutTimestamp', Date.now().toString())
+            return false
+          }
+          
+          if (responseData && responseData.code === 'SESSION_EXPIRED') {
+            console.log('Session expired on the server')
+            return false
+          }
+          
+          if (responseData && responseData.code === 'SESSION_INACTIVE') {
+            console.log('Session is inactive on the server')
+            return false
+          }
           
           // 401 is expected when there's no valid session - log as info, not error
           if (status === 401) {

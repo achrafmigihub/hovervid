@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateToggleButtonState();
         
         // ALWAYS check domain status via API for real-time tracking
-        checkDomainStatusViaAPI();
+            checkDomainStatusViaAPI();
         
         // Setup event listeners and continue initialization
         setupEventListeners();

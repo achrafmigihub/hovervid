@@ -290,7 +290,7 @@ if (!function_exists('is_admin')) {
         // This is just a stub
         return false;
     }
-}
+} 
 
 // WordPress HTTP API function stubs
 if (!function_exists('wp_remote_request')) {

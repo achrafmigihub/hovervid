@@ -33,6 +33,8 @@ return [
     'allowed_origins' => [
         'http://localhost:5173',    // Vue dev server
         'http://127.0.0.1:5173',    // Alternative Vue dev server URL
+        'http://[::1]:5173',        // IPv6 localhost Vue dev server
+        'https://[::1]:5173',       // IPv6 localhost Vue dev server (HTTPS)
         'http://localhost:3000',    // In case you use Vite/Nuxt/etc. on a different port
         'http://localhost:8000',    // Laravel itself (for same-origin requests)
         'http://127.0.0.1:8000',    // Alternative Laravel URL

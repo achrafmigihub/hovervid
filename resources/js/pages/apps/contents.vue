@@ -42,139 +42,146 @@
 
       <!-- Content organized by pages -->
       <div v-else>
-        <VRow
-          v-for="(page, pageIndex) in contentPages"
-          :key="pageIndex"
-          class="mb-8"
-        >
-          <VCol cols="12">
-            <!-- Page Title Header -->
-            <VCard variant="outlined" class="mb-4" color="primary">
-              <VCardTitle class="d-flex align-center">
+        <VExpansionPanels v-model="expandedPanels" multiple>
+          <VExpansionPanel
+            v-for="(page, pageIndex) in contentPages"
+            :key="pageIndex"
+            :value="pageIndex"
+            class="mb-4"
+          >
+            <VExpansionPanelTitle class="page-header">
+              <div class="d-flex align-center w-100">
                 <VIcon class="me-3">bx-file</VIcon>
                 <div class="flex-grow-1">
-                  <h5 class="text-h5">{{ page.page_name }}</h5>
-                  <p class="text-body-2 mt-1 mb-0">
+                  <h5 class="text-h6">{{ page.page_name }}</h5>
+                  <p class="text-body-2 mt-1 mb-0 text-medium-emphasis">
                     {{ page.content_count }} content {{ page.content_count === 1 ? 'item' : 'items' }}
                   </p>
                 </div>
                 <VChip 
                   :color="page.items.filter(item => item.has_video).length > 0 ? 'success' : 'warning'"
                   variant="tonal"
+                  size="small"
+                  class="me-4"
                 >
                   {{ page.items.filter(item => item.has_video).length }}/{{ page.content_count }} with videos
                 </VChip>
-              </VCardTitle>
-            </VCard>
+              </div>
+            </VExpansionPanelTitle>
 
-            <!-- Content Items for this page -->
-            <VRow>
-              <VCol 
-                cols="12"
-                v-for="(item, itemIndex) in page.items"
-                :key="item.id"
-                class="mb-4"
-              >
-                <VCard variant="outlined" class="content-item-card">
-                  <VCardText>
-                    <VRow align="center">
-                      <!-- Content Input Field -->
-                      <VCol cols="12" md="6">
-                        <VTextField
-                          :model-value="item.text"
-                          :label="`Content ${itemIndex + 1}`"
-                          variant="outlined"
-                          readonly
-                          hide-details="auto"
-                          class="content-input"
-                        />
-                        <div class="mt-2 d-flex align-center">
-                          <VChip 
-                            size="small" 
-                            color="info" 
-                            variant="tonal"
-                            class="me-2"
-                          >
-                            ID: {{ item.id.substring(0, 8) }}...
-                          </VChip>
-                          <VChip 
-                            size="small" 
-                            :color="item.has_video ? 'success' : 'warning'"
-                            variant="tonal"
-                            class="me-2"
-                          >
-                            {{ item.has_video ? 'Has Video' : 'No Video' }}
-                          </VChip>
-                          <VChip 
-                            size="small" 
-                            color="purple" 
-                            variant="tonal"
-                            v-if="item.context"
-                          >
-                            {{ item.context }}
-                          </VChip>
-                        </div>
-                      </VCol>
-
-                      <!-- Action Buttons -->
-                      <VCol cols="12" md="6" class="d-flex justify-end align-center">
-                        <div class="d-flex flex-column flex-sm-row gap-3">
-                          <!-- Upload Button -->
-                          <VBtn
-                            color="primary"
-                            variant="elevated"
-                            prepend-icon="bx-upload"
-                            size="default"
-                            :loading="isUploading && currentUploadingId === item.id"
-                            :disabled="isUploading || isRejecting"
-                            @click="selectFile(item.id)"
-                            class="upload-btn"
-                          >
-                            {{ item.has_video ? 'Replace Video' : 'Upload Video' }}
-                          </VBtn>
-
-                          <!-- Remove Button -->
-                          <VBtn
-                            color="error"
-                            variant="outlined"
-                            prepend-icon="bx-trash"
-                            size="default"
-                            :loading="isRejecting && currentRejectingId === item.id"
-                            :disabled="isUploading || isRejecting"
-                            @click="rejectContent(item.id)"
-                            class="remove-btn"
-                          >
-                            Remove
-                          </VBtn>
-                        </div>
-                      </VCol>
-                    </VRow>
-
-                    <!-- Video Preview (if exists) -->
-                    <VRow v-if="item.video_url" class="mt-4">
-                      <VCol cols="12">
-                        <VAlert color="success" variant="tonal" icon="bx-check-circle">
-                          <div class="d-flex align-center">
-                            <div class="flex-grow-1">
-                              <strong>Video attached:</strong> {{ item.video_url.split('/').pop() }}
-                            </div>
-                            <VBtn
-                              color="success"
-                              variant="text"
-                              icon="bx-play-circle"
-                              size="small"
-                              @click="previewVideo(item.video_url)"
+            <VExpansionPanelText class="pa-0">
+              <VDivider />
+              <div class="pa-4">
+                <!-- Content Items for this page -->
+                <VRow>
+                  <VCol 
+                    cols="12"
+                    v-for="(item, itemIndex) in page.items"
+                    :key="item.id"
+                    class="mb-4"
+                  >
+                    <VCard variant="outlined" class="content-item-card">
+                      <VCardText>
+                        <VRow align="center">
+                          <!-- Content Input Field -->
+                          <VCol cols="12" md="6">
+                            <VTextarea
+                              :model-value="item.text"
+                              :label="`Content ${itemIndex + 1}`"
+                              variant="outlined"
+                              readonly
+                              hide-details="auto"
+                              rows="3"
+                              auto-grow
+                              class="content-input"
                             />
-                          </div>
-                        </VAlert>
-                      </VCol>
-                    </VRow>
-                  </VCardText>
-                </VCard>
-              </VCol>
-            </VRow>
-          </VCol>
-        </VRow>
+                            <div class="mt-2 d-flex flex-column align-start gap-2">
+                              <VChip 
+                                size="small" 
+                                color="info" 
+                                variant="tonal"
+                              >
+                                ID: {{ item.id.substring(0, 8) }}...
+                              </VChip>
+                              <VChip 
+                                size="small" 
+                                :color="item.has_video ? 'success' : 'warning'"
+                                variant="tonal"
+                              >
+                                {{ item.has_video ? 'Has Video' : 'No Video' }}
+                              </VChip>
+                              <VChip 
+                                size="small" 
+                                color="purple" 
+                                variant="tonal"
+                                v-if="item.context"
+                              >
+                                {{ item.context }}
+                              </VChip>
+                            </div>
+                          </VCol>
+
+                          <!-- Action Buttons -->
+                          <VCol cols="12" md="6" class="d-flex justify-end align-center">
+                            <div class="d-flex flex-column flex-sm-row gap-3">
+                              <!-- Upload Button -->
+                              <VBtn
+                                color="primary"
+                                variant="elevated"
+                                prepend-icon="bx-upload"
+                                size="default"
+                                :loading="isUploading && currentUploadingId === item.id"
+                                :disabled="isUploading || isRejecting"
+                                @click="selectFile(item.id)"
+                                class="upload-btn"
+                              >
+                                {{ item.has_video ? 'Replace Video' : 'Upload Video' }}
+                              </VBtn>
+
+                              <!-- Remove Button -->
+                              <VBtn
+                                color="error"
+                                variant="outlined"
+                                prepend-icon="bx-trash"
+                                size="default"
+                                :loading="isRejecting && currentRejectingId === item.id"
+                                :disabled="isUploading || isRejecting"
+                                @click="rejectContent(item.id)"
+                                class="remove-btn"
+                              >
+                                Remove
+                              </VBtn>
+                            </div>
+                          </VCol>
+                        </VRow>
+
+                        <!-- Video Preview (if exists) -->
+                        <VRow v-if="item.video_url" class="mt-4">
+                          <VCol cols="12">
+                            <VAlert color="success" variant="tonal" icon="bx-check-circle">
+                              <div class="d-flex align-center">
+                                <div class="flex-grow-1">
+                                  <strong>Video attached:</strong> {{ item.video_url.split('/').pop() }}
+                                </div>
+                                <VBtn
+                                  color="success"
+                                  variant="text"
+                                  icon="bx-play-circle"
+                                  size="small"
+                                  @click="previewVideo(item.video_url)"
+                                />
+                              </div>
+                            </VAlert>
+                          </VCol>
+                        </VRow>
+                      </VCardText>
+                    </VCard>
+                  </VCol>
+                </VRow>
+              </div>
+            </VExpansionPanelText>
+          </VExpansionPanel>
+        </VExpansionPanels>
       </div>
 
       <!-- Hidden File Input -->
@@ -237,8 +244,14 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/useAuthStore'
 import axios from 'axios'
 import { computed, nextTick, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+// Stores
+const authStore = useAuthStore()
+const router = useRouter()
 
 // Reactive variables
 const contentPages = ref([])
@@ -254,6 +267,7 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const videoPreviewDialog = ref(false)
 const previewVideoUrl = ref('')
+const expandedPanels = ref([])
 
 // Computed properties
 const totalPages = computed(() => contentPages.value.length)
@@ -266,6 +280,13 @@ const contentWithVideos = computed(() => {
 
 // Lifecycle
 onMounted(async () => {
+  // Check if user is authenticated
+  if (!authStore.isAuthenticated) {
+    console.error('User not authenticated, redirecting to login')
+    router.push('/login')
+    return
+  }
+  
   await fetchContent()
 })
 
@@ -275,13 +296,27 @@ const fetchContent = async () => {
     isLoading.value = true
     errorMessage.value = ''
 
+    // Check authentication before making API call
+    if (!authStore.isAuthenticated) {
+      errorMessage.value = 'You must be logged in to view content'
+      router.push('/login')
+      return
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+
+    // Add authorization header if token exists
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`
+    }
+
     const sessionApi = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      baseURL: '/api',
+      headers,
       withCredentials: true
     })
 
@@ -295,7 +330,15 @@ const fetchContent = async () => {
     }
   } catch (error) {
     console.error('Error fetching content:', error)
-    errorMessage.value = error.response?.data?.message || 'Failed to fetch content'
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      errorMessage.value = 'Session expired. Please log in again.'
+      authStore.clearAuthData()
+      router.push('/login')
+    } else {
+      errorMessage.value = error.response?.data?.message || error.message || 'Failed to fetch content'
+    }
   } finally {
     isLoading.value = false
   }
@@ -320,15 +363,29 @@ const uploadVideo = async (file, contentId) => {
     errorMessage.value = ''
     successMessage.value = ''
 
+    // Check authentication
+    if (!authStore.isAuthenticated) {
+      errorMessage.value = 'You must be logged in to upload videos'
+      router.push('/login')
+      return
+    }
+
     const formData = new FormData()
     formData.append('video', file)
 
+    const headers = {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+
+    // Add authorization header if token exists
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`
+    }
+
     const sessionApi = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      baseURL: '/api',
+      headers,
       withCredentials: true
     })
 
@@ -354,7 +411,15 @@ const uploadVideo = async (file, contentId) => {
     }
   } catch (error) {
     console.error('Error uploading video:', error)
-    errorMessage.value = error.response?.data?.message || 'Failed to upload video'
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      errorMessage.value = 'Session expired. Please log in again.'
+      authStore.clearAuthData()
+      router.push('/login')
+    } else {
+      errorMessage.value = error.response?.data?.message || error.message || 'Failed to upload video'
+    }
   } finally {
     isUploading.value = false
     currentUploadingId.value = null
@@ -372,13 +437,27 @@ const rejectContent = async (contentId) => {
     errorMessage.value = ''
     successMessage.value = ''
 
+    // Check authentication
+    if (!authStore.isAuthenticated) {
+      errorMessage.value = 'You must be logged in to remove content'
+      router.push('/login')
+      return
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+
+    // Add authorization header if token exists
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`
+    }
+
     const sessionApi = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      baseURL: '/api',
+      headers,
       withCredentials: true
     })
 
@@ -400,7 +479,15 @@ const rejectContent = async (contentId) => {
     }
   } catch (error) {
     console.error('Error removing content:', error)
-    errorMessage.value = error.response?.data?.message || 'Failed to remove content'
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      errorMessage.value = 'Session expired. Please log in again.'
+      authStore.clearAuthData()
+      router.push('/login')
+    } else {
+      errorMessage.value = error.response?.data?.message || error.message || 'Failed to remove content'
+    }
   } finally {
     isRejecting.value = false
     currentRejectingId.value = null
@@ -434,11 +521,40 @@ const previewVideo = (videoUrl) => {
   min-width: 120px;
 }
 
+.page-header {
+  background-color: rgb(var(--v-theme-primary-lighten-5));
+  border-radius: 8px;
+}
+
+.page-header:hover {
+  background-color: rgb(var(--v-theme-primary-lighten-4));
+}
+
+:deep(.v-expansion-panel) {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+:deep(.v-expansion-panel-title) {
+  min-height: 64px;
+  padding: 16px 24px;
+  font-weight: 500;
+}
+
+:deep(.v-expansion-panel-text__wrapper) {
+  padding: 0;
+}
+
 @media (max-width: 768px) {
   .upload-btn,
   .remove-btn {
     width: 100%;
     min-width: unset;
+  }
+  
+  :deep(.v-expansion-panel-title) {
+    padding: 12px 16px;
   }
 }
 </style> 
