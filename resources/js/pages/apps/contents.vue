@@ -1,15 +1,23 @@
 <template>
-  <VCard title="Contents">
+  <VCard title="Contents Management">
     <VCardText>
       <VRow>
         <VCol cols="12" class="text-center mb-6">
-          <h1 class="text-h4">Contents Management</h1>
+          <h1 class="text-h4">Website Content</h1>
           <p class="text-subtitle-1 mt-2" v-if="domain">
             Managing content for: <strong>{{ domain.domain }}</strong>
           </p>
-          <p class="text-subtitle-1 mt-2" v-else-if="!isLoading">
-            Managing all your content
-          </p>
+          <div class="mt-4" v-if="!isLoading && contentPages.length > 0">
+            <VChip color="primary" variant="tonal" class="me-2">
+              {{ totalPages }} Pages
+            </VChip>
+            <VChip color="success" variant="tonal" class="me-2">
+              {{ totalContent }} Content Items
+            </VChip>
+            <VChip color="info" variant="tonal">
+              {{ contentWithVideos }} With Videos
+            </VChip>
+          </div>
         </VCol>
       </VRow>
 
@@ -22,7 +30,7 @@
       </VRow>
 
       <!-- No content state -->
-      <VRow v-else-if="contentItems.length === 0">
+      <VRow v-else-if="contentPages.length === 0">
         <VCol cols="12" class="text-center">
           <VIcon size="64" color="muted" class="mb-4">bx-file-blank</VIcon>
           <h3 class="text-h6 mb-2">No Content Found</h3>
@@ -32,87 +40,148 @@
         </VCol>
       </VRow>
 
-      <!-- Content items -->
+      <!-- Content organized by pages -->
       <div v-else>
-        <VRow 
-          v-for="(item, index) in contentItems" 
-          :key="item.id"
-          class="mb-6"
+        <VRow
+          v-for="(page, pageIndex) in contentPages"
+          :key="pageIndex"
+          class="mb-8"
         >
           <VCol cols="12">
-            <VCard variant="outlined" class="pa-4">
-              <VRow>
-                <VCol cols="12" md="8">
-                  <VTextarea
-                    :model-value="item.content_element"
-                    :label="`Content ${index + 1}`"
-                    readonly
-                    rows="4"
-                    auto-grow
-                    variant="outlined"
-                    class="content-textarea"
-                  />
-                  <div class="mt-2">
-                    <VChip 
-                      size="small" 
-                      color="info" 
-                      variant="tonal"
-                      class="me-2"
-                    >
-                      ID: {{ item.id.substring(0, 8) }}...
-                    </VChip>
-                    <VChip 
-                      size="small" 
-                      color="success" 
-                      variant="tonal"
-                      v-if="item.video_url"
-                    >
-                      Has Video
-                    </VChip>
-                    <VChip 
-                      size="small" 
-                      color="warning" 
-                      variant="tonal"
-                      v-else
-                    >
-                      No Video
-                    </VChip>
-                  </div>
-                </VCol>
-                <VCol cols="12" md="4" class="d-flex flex-column justify-center">
-                  <VBtn
-                    prepend-icon="bx-upload"
-                    color="primary"
-                    size="large"
-                    class="mb-3"
-                    @click="selectFile(item.id)"
-                    :disabled="isRejecting"
-                  >
-                    Upload Video
-                  </VBtn>
-                  <VBtn
-                    prepend-icon="bx-x"
-                    color="error"
-                    size="large"
-                    variant="outlined"
-                    @click="rejectContent(item.id)"
-                    :loading="isRejecting && currentRejectingId === item.id"
-                    :disabled="isRejecting"
-                  >
-                    Reject Content
-                  </VBtn>
-                </VCol>
-              </VRow>
+            <!-- Page Title Header -->
+            <VCard variant="outlined" class="mb-4" color="primary">
+              <VCardTitle class="d-flex align-center">
+                <VIcon class="me-3">bx-file</VIcon>
+                <div class="flex-grow-1">
+                  <h5 class="text-h5">{{ page.page_name }}</h5>
+                  <p class="text-body-2 mt-1 mb-0">
+                    {{ page.content_count }} content {{ page.content_count === 1 ? 'item' : 'items' }}
+                  </p>
+                </div>
+                <VChip 
+                  :color="page.items.filter(item => item.has_video).length > 0 ? 'success' : 'warning'"
+                  variant="tonal"
+                >
+                  {{ page.items.filter(item => item.has_video).length }}/{{ page.content_count }} with videos
+                </VChip>
+              </VCardTitle>
             </VCard>
+
+            <!-- Content Items for this page -->
+            <VRow>
+              <VCol 
+                cols="12"
+                v-for="(item, itemIndex) in page.items"
+                :key="item.id"
+                class="mb-4"
+              >
+                <VCard variant="outlined" class="content-item-card">
+                  <VCardText>
+                    <VRow align="center">
+                      <!-- Content Input Field -->
+                      <VCol cols="12" md="6">
+                        <VTextField
+                          :model-value="item.text"
+                          :label="`Content ${itemIndex + 1}`"
+                          variant="outlined"
+                          readonly
+                          hide-details="auto"
+                          class="content-input"
+                        />
+                        <div class="mt-2 d-flex align-center">
+                          <VChip 
+                            size="small" 
+                            color="info" 
+                            variant="tonal"
+                            class="me-2"
+                          >
+                            ID: {{ item.id.substring(0, 8) }}...
+                          </VChip>
+                          <VChip 
+                            size="small" 
+                            :color="item.has_video ? 'success' : 'warning'"
+                            variant="tonal"
+                            class="me-2"
+                          >
+                            {{ item.has_video ? 'Has Video' : 'No Video' }}
+                          </VChip>
+                          <VChip 
+                            size="small" 
+                            color="purple" 
+                            variant="tonal"
+                            v-if="item.context"
+                          >
+                            {{ item.context }}
+                          </VChip>
+                        </div>
+                      </VCol>
+
+                      <!-- Action Buttons -->
+                      <VCol cols="12" md="6" class="d-flex justify-end align-center">
+                        <div class="d-flex flex-column flex-sm-row gap-3">
+                          <!-- Upload Button -->
+                          <VBtn
+                            color="primary"
+                            variant="elevated"
+                            prepend-icon="bx-upload"
+                            size="default"
+                            :loading="isUploading && currentUploadingId === item.id"
+                            :disabled="isUploading || isRejecting"
+                            @click="selectFile(item.id)"
+                            class="upload-btn"
+                          >
+                            {{ item.has_video ? 'Replace Video' : 'Upload Video' }}
+                          </VBtn>
+
+                          <!-- Remove Button -->
+                          <VBtn
+                            color="error"
+                            variant="outlined"
+                            prepend-icon="bx-trash"
+                            size="default"
+                            :loading="isRejecting && currentRejectingId === item.id"
+                            :disabled="isUploading || isRejecting"
+                            @click="rejectContent(item.id)"
+                            class="remove-btn"
+                          >
+                            Remove
+                          </VBtn>
+                        </div>
+                      </VCol>
+                    </VRow>
+
+                    <!-- Video Preview (if exists) -->
+                    <VRow v-if="item.video_url" class="mt-4">
+                      <VCol cols="12">
+                        <VAlert color="success" variant="tonal" icon="bx-check-circle">
+                          <div class="d-flex align-center">
+                            <div class="flex-grow-1">
+                              <strong>Video attached:</strong> {{ item.video_url.split('/').pop() }}
+                            </div>
+                            <VBtn
+                              color="success"
+                              variant="text"
+                              icon="bx-play-circle"
+                              size="small"
+                              @click="previewVideo(item.video_url)"
+                            />
+                          </div>
+                        </VAlert>
+                      </VCol>
+                    </VRow>
+                  </VCardText>
+                </VCard>
+              </VCol>
+            </VRow>
           </VCol>
         </VRow>
       </div>
 
-      <!-- File input (hidden) -->
+      <!-- Hidden File Input -->
       <VFileInput
         ref="fileInput"
         v-model="files"
-        label="Select File"
+        label="Select Video File"
         hide-details
         variant="outlined"
         accept="video/*,.mp4,.avi,.mov,.wmv,.flv,.webm"
@@ -120,7 +189,7 @@
         @update:model-value="handleFileChange"
       />
 
-      <!-- Error message -->
+      <!-- Alerts -->
       <VAlert 
         v-if="errorMessage"
         type="error"
@@ -131,7 +200,6 @@
         {{ errorMessage }}
       </VAlert>
 
-      <!-- Success message -->
       <VAlert 
         v-if="successMessage"
         type="success"
@@ -143,34 +211,70 @@
       </VAlert>
     </VCardText>
   </VCard>
+
+  <!-- Video Preview Dialog -->
+  <VDialog v-model="videoPreviewDialog" max-width="800px">
+    <VCard>
+      <VCardTitle class="d-flex align-center">
+        <VIcon class="me-3">bx-play-circle</VIcon>
+        Video Preview
+        <VSpacer />
+        <VBtn icon="bx-x" variant="text" @click="videoPreviewDialog = false" />
+      </VCardTitle>
+      <VCardText>
+        <video 
+          v-if="previewVideoUrl"
+          :src="previewVideoUrl"
+          controls
+          width="100%"
+          height="auto"
+        >
+          Your browser does not support the video tag.
+        </video>
+      </VCardText>
+    </VCard>
+  </VDialog>
 </template>
 
 <script setup>
 import axios from 'axios'
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 
-const contentItems = ref([])
+// Reactive variables
+const contentPages = ref([])
 const domain = ref(null)
 const files = ref([])
 const fileInput = ref(null)
 const isLoading = ref(true)
 const isRejecting = ref(false)
+const isUploading = ref(false)
 const currentRejectingId = ref(null)
+const currentUploadingId = ref(null)
 const errorMessage = ref('')
 const successMessage = ref('')
-const currentUploadingContentId = ref(null)
+const videoPreviewDialog = ref(false)
+const previewVideoUrl = ref('')
 
-// Fetch content on component mount
+// Computed properties
+const totalPages = computed(() => contentPages.value.length)
+const totalContent = computed(() => contentPages.value.reduce((sum, page) => sum + page.content_count, 0))
+const contentWithVideos = computed(() => {
+  return contentPages.value.reduce((sum, page) => {
+    return sum + page.items.filter(item => item.has_video).length
+  }, 0)
+})
+
+// Lifecycle
 onMounted(async () => {
   await fetchContent()
 })
 
+// Methods
 const fetchContent = async () => {
   try {
     isLoading.value = true
     errorMessage.value = ''
 
-    // Create a session-only axios instance (like in DomainSetupPopup)
     const sessionApi = axios.create({
       baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
       headers: {
@@ -184,7 +288,7 @@ const fetchContent = async () => {
     const response = await sessionApi.get('/client/content')
     
     if (response.data.success) {
-      contentItems.value = response.data.data.content
+      contentPages.value = response.data.data.pages
       domain.value = response.data.data.domain
     } else {
       errorMessage.value = response.data.message || 'Failed to fetch content'
@@ -198,22 +302,67 @@ const fetchContent = async () => {
 }
 
 const selectFile = (contentId) => {
-  currentUploadingContentId.value = contentId
+  currentUploadingId.value = contentId
   nextTick(() => {
-    fileInput.value.$el.click()
+    fileInput.value.$el.querySelector('input').click()
   })
 }
 
-const handleFileChange = () => {
-  if (files.value && files.value.length > 0) {
-    const selectedFile = files.value[0]
-    successMessage.value = `Selected file: ${selectedFile.name} for content ID: ${currentUploadingContentId.value?.substring(0, 8)}...`
-    // TODO: Implement file upload functionality
+const handleFileChange = async () => {
+  if (files.value && files.value.length > 0 && currentUploadingId.value) {
+    await uploadVideo(files.value[0], currentUploadingId.value)
+  }
+}
+
+const uploadVideo = async (file, contentId) => {
+  try {
+    isUploading.value = true
+    errorMessage.value = ''
+    successMessage.value = ''
+
+    const formData = new FormData()
+    formData.append('video', file)
+
+    const sessionApi = axios.create({
+      baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      withCredentials: true
+    })
+
+    const response = await sessionApi.post(`/client/content/${contentId}/upload-video`, formData)
+    
+    if (response.data.success) {
+      successMessage.value = `Video uploaded successfully for content ${contentId.substring(0, 8)}...`
+      
+      // Update the local data
+      contentPages.value.forEach(page => {
+        page.items.forEach(item => {
+          if (item.id === contentId) {
+            item.video_url = response.data.data.video_url
+            item.has_video = true
+          }
+        })
+      })
+      
+      // Clear file input
+      files.value = []
+    } else {
+      errorMessage.value = response.data.message || 'Failed to upload video'
+    }
+  } catch (error) {
+    console.error('Error uploading video:', error)
+    errorMessage.value = error.response?.data?.message || 'Failed to upload video'
+  } finally {
+    isUploading.value = false
+    currentUploadingId.value = null
   }
 }
 
 const rejectContent = async (contentId) => {
-  if (!confirm('Are you sure you want to reject this content? This action cannot be undone.')) {
+  if (!confirm('Are you sure you want to remove this content? This action cannot be undone.')) {
     return
   }
 
@@ -223,7 +372,6 @@ const rejectContent = async (contentId) => {
     errorMessage.value = ''
     successMessage.value = ''
 
-    // Create a session-only axios instance
     const sessionApi = axios.create({
       baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
       headers: {
@@ -237,28 +385,60 @@ const rejectContent = async (contentId) => {
     const response = await sessionApi.delete(`/client/content/${contentId}`)
     
     if (response.data.success) {
-      // Remove the content from the list
-      contentItems.value = contentItems.value.filter(item => item.id !== contentId)
-      successMessage.value = 'Content rejected successfully'
+      successMessage.value = 'Content removed successfully'
+      
+      // Remove the content from local data
+      contentPages.value.forEach(page => {
+        page.items = page.items.filter(item => item.id !== contentId)
+        page.content_count = page.items.length
+      })
+      
+      // Remove empty pages
+      contentPages.value = contentPages.value.filter(page => page.content_count > 0)
     } else {
-      errorMessage.value = response.data.message || 'Failed to reject content'
+      errorMessage.value = response.data.message || 'Failed to remove content'
     }
   } catch (error) {
-    console.error('Error rejecting content:', error)
-    errorMessage.value = error.response?.data?.message || 'Failed to reject content'
+    console.error('Error removing content:', error)
+    errorMessage.value = error.response?.data?.message || 'Failed to remove content'
   } finally {
     isRejecting.value = false
     currentRejectingId.value = null
   }
 }
+
+const previewVideo = (videoUrl) => {
+  previewVideoUrl.value = videoUrl
+  videoPreviewDialog.value = true
+}
 </script>
 
 <style scoped>
-.content-textarea :deep(.v-field__input) {
+.content-item-card {
+  transition: all 0.3s ease;
+}
+
+.content-item-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.content-input :deep(.v-field__input) {
   cursor: default !important;
 }
 
-.content-textarea :deep(.v-field--disabled) {
-  opacity: 1 !important;
+.upload-btn {
+  min-width: 140px;
+}
+
+.remove-btn {
+  min-width: 120px;
+}
+
+@media (max-width: 768px) {
+  .upload-btn,
+  .remove-btn {
+    width: 100%;
+    min-width: unset;
+  }
 }
 </style> 

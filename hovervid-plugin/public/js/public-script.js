@@ -30,9 +30,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add domain status configuration from wp_localize_script
         domainStatus: {
             // Get domain status directly from PHP's wp_localize_script vars
-            isActive: !!(window.slvp_vars && window.slvp_vars.is_domain_active),
-            isForced: !!(window.slvp_vars && window.slvp_vars.is_forced_active),
-            domainExists: !!(window.slvp_vars && window.slvp_vars.domain_exists),
+            isActive: !!(window.slvp_vars && window.slvp_vars.is_domain_active === '1'),
+            isForced: !!(window.slvp_vars && window.slvp_vars.is_forced_active === '1'),
+            domainExists: !!(window.slvp_vars && window.slvp_vars.domain_exists === '1'),
             licenseMessage: window.slvp_vars ? window.slvp_vars.license_message : 'Your subscription or license has expired. Please contact support to renew your access.',
             domain: window.slvp_vars ? window.slvp_vars.domain : window.location.hostname
         },
@@ -1002,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!config.api.ajaxUrl) {
             console.log('No AJAX URL available, using PHP value');
             // Fallback to wp_localize_script value if API check not possible
-            config.domainStatus.isActive = typeof window.slvp_vars !== 'undefined' && window.slvp_vars.is_domain_active === true;
+            config.domainStatus.isActive = typeof window.slvp_vars !== 'undefined' && window.slvp_vars.is_domain_active === '1';
             console.log('Default value set:', config.domainStatus.isActive);
             if (callback) callback();
             return;
@@ -1093,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // API error - fallback to wp_localize_script value
                 console.log('API reported error. Falling back to default value');
-                config.domainStatus.isActive = typeof window.slvp_vars !== 'undefined' && window.slvp_vars.is_domain_active === true;
+                config.domainStatus.isActive = typeof window.slvp_vars !== 'undefined' && window.slvp_vars.is_domain_active === '1';
                 console.log('Error message:', data.data ? data.data.message : 'Unknown error');
                 console.log('Domain status after fallback:', config.domainStatus);
                 
@@ -1106,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const errorTime = new Date().toISOString();
             // Error - fallback to wp_localize_script value
             console.log(`[${errorTime}] Error during fetch:`, error);
-            config.domainStatus.isActive = typeof window.slvp_vars !== 'undefined' && window.slvp_vars.is_domain_active === true;
+            config.domainStatus.isActive = typeof window.slvp_vars !== 'undefined' && window.slvp_vars.is_domain_active === '1';
             console.log('Domain status after error fallback:', config.domainStatus);
             
             updateToggleButtonState();

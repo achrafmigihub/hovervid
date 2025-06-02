@@ -51,7 +51,7 @@ class SLVP_Video_Player {
         }
         
         // Always initialize API handler (needed for domain status checks)
-        new SLVP_Api_Handler();
+        new SLVP_API_Handler();
         
         // Hook into WordPress
         add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']); // Load my styles and scripts
@@ -77,6 +77,14 @@ class SLVP_Video_Player {
                 [],                                          
                 filemtime(SLVP_PLUGIN_PATH . 'public/css/public-style.css') // Using file time for cache busting
             );
+            
+            // Add popup styles
+            wp_enqueue_style(
+                'slvp-popup-style',                          
+                SLVP_PLUGIN_URL . 'public/css/popup.css', 
+                [],                                          
+                filemtime(SLVP_PLUGIN_PATH . 'public/css/popup.css') // Using file time for cache busting
+            );
         }
         
         // My main JS functionality
@@ -86,6 +94,15 @@ class SLVP_Video_Player {
                 SLVP_PLUGIN_URL . 'public/js/public-script.js', 
                 ['jquery'],                                 // Need jQuery for some features
                 filemtime(SLVP_PLUGIN_PATH . 'public/js/public-script.js'), 
+                true                                        // Footer loading for better performance
+            );
+            
+            // Add popup functionality
+            wp_enqueue_script(
+                'slvp-login-popup-script',                        
+                SLVP_PLUGIN_URL . 'public/js/login-popup.js', 
+                ['jquery'],                                 // Need jQuery for some features
+                filemtime(SLVP_PLUGIN_PATH . 'public/js/login-popup.js'), 
                 true                                        // Footer loading for better performance
             );
         }
@@ -107,6 +124,10 @@ class SLVP_Video_Player {
             $admin_ajax_url = function_exists('admin_url') ? admin_url('admin-ajax.php') : '';
             $nonce = function_exists('wp_create_nonce') ? wp_create_nonce('slvp_nonce') : '';
             
+            // Get Laravel API base URL from API client
+            $api_client = SLVP_API_Client::get_instance();
+            $api_base_url = str_replace('/api', '', $api_client->get_api_url()); // Remove /api suffix for frontend URLs
+            
             // Set up JS variables using wp_localize_script
             if (function_exists('wp_localize_script')) {
                 wp_localize_script(
@@ -116,11 +137,14 @@ class SLVP_Video_Player {
                         'ajax_url' => $admin_ajax_url,
                         'ajax_nonce' => $nonce,
                         'plugin_url' => SLVP_PLUGIN_URL,
-                        'is_domain_active' => (bool)$is_domain_active, // Force boolean type
-                        'is_forced_active' => (bool)$is_forced_active, // Flag for forced domains
-                        'domain_exists' => (bool)$domain_exists, // Flag if domain exists in database
+                        'is_domain_active' => $is_domain_active ? '1' : '0', // Convert to string for JS comparison
+                        'is_forced_active' => $is_forced_active ? '1' : '0', // Convert to string for JS comparison
+                        'domain_exists' => $domain_exists ? '1' : '0', // Convert to string for JS comparison
                         'license_message' => $license_message,
-                        'domain' => $current_domain
+                        'domain' => $current_domain,
+                        'api_base_url' => $api_base_url,
+                        'login_url' => $api_base_url . '/login',
+                        'signup_url' => $api_base_url . '/register'
                     ]
                 );
                 

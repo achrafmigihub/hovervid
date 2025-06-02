@@ -284,10 +284,196 @@ if (!function_exists('is_admin')) {
     /**
      * Determines whether the current request is for an administrative interface page.
      *
-     * @return bool True if inside WordPress administration interface, false otherwise
+     * @return bool True if the current request is for an administrative interface page, false otherwise
      */
     function is_admin() {
         // This is just a stub
         return false;
+    }
+}
+
+// WordPress HTTP API function stubs
+if (!function_exists('wp_remote_request')) {
+    /**
+     * Performs an HTTP request using the WordPress HTTP API.
+     *
+     * @param string $url  URL to retrieve
+     * @param array  $args Optional. Request arguments
+     * @return array|WP_Error The response or WP_Error on failure
+     */
+    function wp_remote_request($url, $args = array()) {
+        // For testing purposes, actually make the real HTTP request using curl
+        $ch = curl_init();
+        
+        curl_setopt_array($ch, array(
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'User-Agent: HoverVid-Plugin/1.0'
+            )
+        ));
+        
+        // Handle different HTTP methods
+        $method = isset($args['method']) ? strtoupper($args['method']) : 'GET';
+        
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            if (isset($args['body'])) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $args['body']);
+            }
+        }
+        
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        // Return WordPress-style response
+        if ($error) {
+            error_log('HTTP Request Error: ' . $error);
+            return array(
+                'headers'  => array(),
+                'body'     => '',
+                'response' => array(
+                    'code'    => 0,
+                    'message' => 'Connection Error'
+                )
+            );
+        }
+        
+        return array(
+            'headers'  => array(),
+            'body'     => $response,
+            'response' => array(
+                'code'    => $http_code,
+                'message' => 'OK'
+            )
+        );
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_body')) {
+    /**
+     * Retrieves only the body from the raw response.
+     *
+     * @param array|WP_Error $response HTTP response
+     * @return string The body of the response or empty string on failure
+     */
+    function wp_remote_retrieve_body($response) {
+        return isset($response['body']) ? $response['body'] : '';
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_response_code')) {
+    /**
+     * Retrieves only the response code from the raw response.
+     *
+     * @param array|WP_Error $response HTTP response
+     * @return int The response code or 0 on failure
+     */
+    function wp_remote_retrieve_response_code($response) {
+        return isset($response['response']['code']) ? $response['response']['code'] : 200;
+    }
+}
+
+if (!function_exists('is_wp_error')) {
+    /**
+     * Checks whether variable is a WordPress Error.
+     *
+     * @param mixed $thing Check if unknown variable is WordPress Error object
+     * @return bool True if WP_Error, false otherwise
+     */
+    function is_wp_error($thing) {
+        return false; // For stub purposes, never return error
+    }
+}
+
+if (!function_exists('wp_enqueue_style')) {
+    /**
+     * Enqueue a CSS stylesheet.
+     *
+     * @param string           $handle Name of the stylesheet
+     * @param string           $src    Full URL of the stylesheet
+     * @param array            $deps   Optional. An array of registered stylesheet handles this stylesheet depends on
+     * @param string|bool|null $ver    Optional. String specifying stylesheet version number
+     * @param string           $media  Optional. The media for which this stylesheet has been defined
+     */
+    function wp_enqueue_style($handle, $src = '', $deps = array(), $ver = false, $media = 'all') {
+        // This is just a stub
+    }
+}
+
+if (!function_exists('wp_enqueue_script')) {
+    /**
+     * Enqueue a script.
+     *
+     * @param string           $handle    Name of the script
+     * @param string           $src       Full URL of the script
+     * @param array            $deps      Optional. An array of registered script handles this script depends on
+     * @param string|bool|null $ver       Optional. String specifying script version number
+     * @param bool             $in_footer Optional. Whether to enqueue the script before </body> instead of in the <head>
+     */
+    function wp_enqueue_script($handle, $src = '', $deps = array(), $ver = false, $in_footer = false) {
+        // This is just a stub
+    }
+}
+
+if (!function_exists('wp_localize_script')) {
+    /**
+     * Localizes a script by adding data to it.
+     *
+     * @param string $handle      Script handle the data will be attached to
+     * @param string $object_name Name for the JavaScript object
+     * @param array  $l10n        The data itself
+     * @return bool True if the script was successfully localized, false otherwise
+     */
+    function wp_localize_script($handle, $object_name, $l10n) {
+        // This is just a stub
+        return true;
+    }
+}
+
+if (!function_exists('wp_add_inline_script')) {
+    /**
+     * Adds extra code to a registered script.
+     *
+     * @param string $handle   Name of the script to add extra code to
+     * @param string $data     String containing the JavaScript to be added
+     * @param string $position Optional. Whether to add the code before or after the script
+     * @return bool True on success, false on failure
+     */
+    function wp_add_inline_script($handle, $data, $position = 'after') {
+        // This is just a stub
+        return true;
+    }
+}
+
+if (!function_exists('admin_url')) {
+    /**
+     * Retrieves the URL to the admin area.
+     *
+     * @param string $path   Optional. Path relative to the admin URL
+     * @param string $scheme Optional. The scheme to use
+     * @return string Admin URL link with optional path appended
+     */
+    function admin_url($path = '', $scheme = 'admin') {
+        return 'http://localhost/wp-admin/' . ltrim($path, '/');
+    }
+}
+
+if (!function_exists('wp_create_nonce')) {
+    /**
+     * Creates a cryptographic token tied to a specific action, user, and window of time.
+     *
+     * @param string|int $action Scalar value to add context to the nonce
+     * @return string The token
+     */
+    function wp_create_nonce($action = -1) {
+        return 'test_nonce_12345';
     }
 } 

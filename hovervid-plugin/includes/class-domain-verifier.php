@@ -59,7 +59,7 @@ class SLVP_Domain_Verifier {
     
     /**
      * Check domain verification status (SINGLE SOURCE OF TRUTH)
-     * This is the ONLY method that checks the database
+     * This is the ONLY method that checks via Laravel API
      *
      * @return void
      */
@@ -75,65 +75,55 @@ class SLVP_Domain_Verifier {
                 return;
             }
             
-            // Check if database is unavailable
-            if (defined('HOVERVID_DB_UNAVAILABLE') && HOVERVID_DB_UNAVAILABLE) {
-                error_log("HoverVid Domain Verifier: Database unavailable - domain {$this->current_domain} disabled");
+            // Use API client instead of direct database connection
+            $api_client = SLVP_API_Client::get_instance();
+            
+            // Test API connectivity first
+            if (!$api_client->test_connectivity()) {
+                error_log("HoverVid Domain Verifier: Laravel API unavailable - domain {$this->current_domain} disabled");
                 $this->verification_status = [
                     'is_verified' => false,
                     'domain_exists' => false,
-                    'message' => 'Plugin database connection unavailable. Please check configuration.',
+                    'message' => 'Plugin backend service is unavailable. Please check your connection or contact support.',
                     'error' => true,
-                    'database_unavailable' => true
+                    'api_unavailable' => true
                 ];
                 return;
             }
             
-            // Get database instance with error handling
-            try {
-                $db = HoverVid_Database::get_instance();
-            } catch (Exception $db_error) {
-                error_log('HoverVid Domain Verifier: Database connection failed - ' . $db_error->getMessage());
+            // Get domain verification from Laravel API
+            $api_response = $api_client->verify_domain($this->current_domain);
+            
+            if (!$api_response) {
+                // API call failed
+                error_log("HoverVid Domain Verifier: API call failed for domain {$this->current_domain}");
                 $this->verification_status = [
                     'is_verified' => false,
                     'domain_exists' => false,
-                    'message' => 'Plugin database connection failed. Please check configuration.',
+                    'message' => 'Unable to verify domain status. Please try again later.',
                     'error' => true,
-                    'database_error' => true
+                    'api_error' => true
                 ];
                 return;
             }
             
-            // Get domain status from database
-            $domain_data = $db->check_domain_status($this->current_domain);
+            // Parse API response
+            $is_verified = $api_response['is_verified'] ?? false;
+            $domain_exists = $api_response['domain_exists'] ?? false;
+            $message = $api_response['message'] ?? 'Unknown status';
             
-            // Parse the result
-            if (!$domain_data) {
-                // Domain not found in database
-                $this->verification_status = [
-                    'is_verified' => false,
-                    'domain_exists' => false,
-                    'message' => 'This domain is not authorized to use the HoverVid plugin. Please contact the plugin provider.',
-                    'error' => false
-                ];
-            } else {
-                // Domain exists - check is_verified status
-                $is_verified = isset($domain_data['is_active']) ? (bool)$domain_data['is_active'] : false;
-                
-                $this->verification_status = [
-                    'is_verified' => $is_verified,
-                    'domain_exists' => true,
-                    'message' => $is_verified ? 
-                        'Domain is verified and active.' : 
-                        'Your subscription or license has expired. Please contact support to renew your access.',
-                    'error' => false,
-                    'raw_data' => $domain_data
-                ];
-            }
+            $this->verification_status = [
+                'is_verified' => (bool)$is_verified,
+                'domain_exists' => (bool)$domain_exists,
+                'message' => $message,
+                'error' => $api_response['error'] ?? false,
+                'api_response' => $api_response
+            ];
             
             // Log the verification result
             $status_text = $this->verification_status['is_verified'] ? 'VERIFIED' : 'NOT VERIFIED';
             $exists_text = $this->verification_status['domain_exists'] ? 'EXISTS' : 'NOT FOUND';
-            error_log("HoverVid Domain Verifier: {$this->current_domain} - {$status_text} ({$exists_text})");
+            error_log("HoverVid Domain Verifier (API): {$this->current_domain} - {$status_text} ({$exists_text})");
             
         } catch (Exception $e) {
             error_log('HoverVid Domain Verifier Error: ' . $e->getMessage());

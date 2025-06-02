@@ -145,6 +145,7 @@ class HoverVid_Database {
             
             // Set the plugin status based on is_verified
             $result['is_active'] = $is_verified;
+            $result['is_verified'] = $is_verified;  // Ensure is_verified is available for domain verifier
             
             // Set appropriate message based on verification status
             if ($is_verified) {

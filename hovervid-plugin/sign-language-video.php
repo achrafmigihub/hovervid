@@ -27,6 +27,7 @@ define('SLVP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Load required classes
 require_once SLVP_PLUGIN_PATH . 'includes/class-database.php';
+require_once SLVP_PLUGIN_PATH . 'includes/class-api-client.php';
 require_once SLVP_PLUGIN_PATH . 'includes/class-domain-verifier.php';
 require_once SLVP_PLUGIN_PATH . 'includes/class-video-player.php';
 
@@ -38,58 +39,15 @@ require_once SLVP_PLUGIN_PATH . 'includes/class-video-player.php';
 function slvp_check_domain_authorization() {
     $current_domain = $_SERVER['HTTP_HOST'] ?? '';
     
-    // Development domains are always authorized
-    $force_active_domains = [
-        'sign-language-video-plugin.local' => true,
-        'localhost' => true,
-        // Add other development domains as needed
+    // Use the centralized domain verifier instead of direct checks
+    $verifier = SLVP_Domain_Verifier::get_instance();
+    
+    return [
+        'is_active' => $verifier->is_domain_verified(),
+        'message' => $verifier->get_message(),
+        'forced' => false, // No more forced domains
+        'domain_exists' => $verifier->domain_exists()
     ];
-    
-    if (isset($force_active_domains[$current_domain])) {
-        return [
-            'is_active' => true,
-            'message' => 'Development domain - always active',
-            'forced' => true,
-            'domain_exists' => true
-        ];
-    }
-    
-    // Check with database
-    try {
-        $db = HoverVid_Database::get_instance();
-        $domain_status = $db->check_domain_status($current_domain);
-        
-        // If we received a status, return it
-        if ($domain_status) {
-            return $domain_status;
-        }
-        
-        // Fallback message if no status is returned
-        return [
-            'is_active' => false,
-            'message' => 'This domain is not authorized to use the HoverVid plugin.',
-            'domain_exists' => false
-        ];
-    } catch (Exception $e) {
-        $error_message = $e->getMessage();
-        error_log('HoverVid Authorization Check Error: ' . $error_message);
-        
-        // Handle database connection errors separately
-        if (strpos($error_message, 'Database connection failed') !== false) {
-            return [
-                'is_active' => false,
-                'message' => 'Database connection failed. Please check your plugin configuration.',
-                'domain_exists' => false,
-                'db_connection_error' => true
-            ];
-        }
-        
-        return [
-            'is_active' => false,
-            'message' => 'This domain is not authorized to use the HoverVid plugin.',
-            'domain_exists' => false
-        ];
-    }
 }
 
 /**
@@ -132,17 +90,65 @@ function slvp_activation_error_notice() {
     // Standard WordPress error transient
     if ($message = get_transient('hovervid_activation_error')) {
         ?>
-        <div class="notice notice-error is-dismissible" id="hovervid-error-notice">
-            <p><strong>HoverVid Plugin Error:</strong> <?php echo esc_html($message); ?></p>
+        <div class="notice notice-error is-dismissible" id="hovervid-error-notice" style="padding: 20px; border-left: 4px solid #dc3545;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 32px;">🔐</div>
+                <div style="flex: 1;">
+                    <h3 style="margin: 0 0 10px 0; color: #721c24;">HoverVid Plugin - Domain Not Registered</h3>
+                    <p style="margin: 0 0 15px 0;"><strong><?php echo esc_html($message); ?></strong></p>
+                    <p style="margin: 0 0 15px 0;">To use this plugin, you need to have an active account and register your domain with HoverVid.</p>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <a href="#" class="button button-primary" id="hovervid-login-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; text-decoration: none;">
+                            🔑 Login to Dashboard
+                        </a>
+                        <a href="#" class="button button-secondary" id="hovervid-signup-btn">
+                            📝 Create Account
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
+        
         <script>
-            // Add a handler to delete the transient when the notice is dismissed
-            jQuery(document).on('click', '#hovervid-error-notice .notice-dismiss', function() {
-                jQuery.ajax({
-                    url: ajaxurl,
-                    data: {
-                        action: 'hovervid_dismiss_notice'
-                    }
+            jQuery(document).ready(function($) {
+                // Get API base URL using the same logic as the API client
+                var apiBaseUrl = 'http://localhost:8000'; // Default to Laravel local development
+                
+                // Use the same detection logic as the API client
+                var serverName = window.location.hostname;
+                if (serverName.includes('localhost') || serverName.includes('127.0.0.1') || serverName.includes('.local')) {
+                    // Local development (including .local domains)
+                    apiBaseUrl = 'http://localhost:8000';
+                } else {
+                    // Production - UPDATE THIS to your actual Laravel domain
+                    apiBaseUrl = 'http://localhost:8000'; // Change this to your production Laravel URL when deploying
+                }
+                
+                var currentDomain = window.location.hostname;
+                
+                // Set up login button
+                $('#hovervid-login-btn').attr('href', apiBaseUrl + '/login?domain=' + encodeURIComponent(currentDomain) + '&source=plugin');
+                $('#hovervid-signup-btn').attr('href', apiBaseUrl + '/register?domain=' + encodeURIComponent(currentDomain) + '&source=plugin');
+                
+                // Add click tracking
+                $('#hovervid-login-btn').on('click', function() {
+                    console.log('HoverVid: Admin login button clicked for domain:', currentDomain);
+                    console.log('HoverVid: Redirecting to:', this.href);
+                });
+                
+                $('#hovervid-signup-btn').on('click', function() {
+                    console.log('HoverVid: Admin signup button clicked for domain:', currentDomain);
+                    console.log('HoverVid: Redirecting to:', this.href);
+                });
+                
+                // Add a handler to delete the transient when the notice is dismissed
+                $('#hovervid-error-notice .notice-dismiss').on('click', function() {
+                    $.ajax({
+                        url: ajaxurl,
+                        data: {
+                            action: 'hovervid_dismiss_notice'
+                        }
+                    });
                 });
             });
         </script>
@@ -183,33 +189,30 @@ add_action('admin_init', 'slvp_handle_unauthorized_domain', 1); // Priority 1 to
 function slvp_init() {
     // Include core classes
     require_once SLVP_PLUGIN_PATH . 'includes/class-database.php';
+    require_once SLVP_PLUGIN_PATH . 'includes/class-api-client.php';
     require_once SLVP_PLUGIN_PATH . 'includes/class-domain-verifier.php';
     require_once SLVP_PLUGIN_PATH . 'includes/class-video-player.php';
     
-    // Try to initialize database connection - but don't fail if it's not available
+    // Try to initialize API connection - but don't fail if it's not available
     try {
-        HoverVid_Database::get_instance();
-        error_log('HoverVid Plugin: Database connection successful');
-    } catch (Exception $e) {
-        error_log('HoverVid Plugin: Database connection failed - ' . $e->getMessage());
-        error_log('HoverVid Plugin: Continuing in degraded mode (plugin disabled for all domains)');
-        
-        // Set a global flag that database is unavailable
-        if (!defined('HOVERVID_DB_UNAVAILABLE')) {
-            define('HOVERVID_DB_UNAVAILABLE', true);
+        $api_client = SLVP_API_Client::get_instance();
+        if ($api_client->test_connectivity()) {
+            error_log('HoverVid Plugin: Laravel API connection successful');
+        } else {
+            error_log('HoverVid Plugin: Laravel API connection failed');
+            error_log('HoverVid Plugin: Continuing in degraded mode (plugin disabled for all domains)');
         }
+    } catch (Exception $e) {
+        error_log('HoverVid Plugin: API initialization failed - ' . $e->getMessage());
+        error_log('HoverVid Plugin: Continuing in degraded mode (plugin disabled for all domains)');
     }
     
     // Initialize the main video player (which will check domain verification)
-    // The domain verifier will handle the case where database is unavailable
+    // The domain verifier will handle the case where API is unavailable
     new SLVP_Video_Player();
     
     // Log plugin initialization
-    if (defined('HOVERVID_DB_UNAVAILABLE')) {
-        error_log('HoverVid Plugin: Initialized in degraded mode (database unavailable)');
-    } else {
-        error_log('HoverVid Plugin: Initialized with centralized domain verification system');
-    }
+    error_log('HoverVid Plugin: Initialized with Laravel API-based domain verification system');
 }
 
 /**
@@ -235,19 +238,28 @@ function slvp_hide_plugin_activated_message() {
 add_action('admin_head', 'slvp_hide_plugin_activated_message');
 
 /**
- * Display database connection error notice
+ * Display API connection error notice
  */
-function slvp_database_error_notice() {
-    // Only show if database is unavailable
-    if (defined('HOVERVID_DB_UNAVAILABLE') && HOVERVID_DB_UNAVAILABLE) {
+function slvp_api_error_notice() {
+    // Test API connectivity to show notice if unavailable
+    try {
+        $api_client = SLVP_API_Client::get_instance();
+        if (!$api_client->test_connectivity()) {
+            ?>
+            <div class="notice notice-warning">
+                <p><strong>HoverVid Plugin:</strong> Laravel backend service is unavailable. The plugin is currently disabled. Please check your connection or contact the plugin provider.</p>
+            </div>
+            <?php
+        }
+    } catch (Exception $e) {
         ?>
         <div class="notice notice-warning">
-            <p><strong>HoverVid Plugin:</strong> Database connection unavailable. The plugin is currently disabled. Please check your database configuration or contact the plugin provider.</p>
+            <p><strong>HoverVid Plugin:</strong> Backend service connection failed. The plugin is currently disabled. Please contact the plugin provider.</p>
         </div>
         <?php
     }
 }
-add_action('admin_notices', 'slvp_database_error_notice');
+add_action('admin_notices', 'slvp_api_error_notice');
 
 // Initialize plugin
 add_action('plugins_loaded', 'slvp_init');

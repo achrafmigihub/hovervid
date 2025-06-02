@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoverVid URL Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+
+        .url-test {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .url {
+            font-family: monospace;
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .correct {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .incorrect {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>HoverVid URL Configuration Test</h1>
+
+    <div class="url-test">
+        <h3>Current Domain Detection</h3>
+        <p><strong>Hostname:</strong> <span id="hostname"></span></p>
+        <p><strong>Environment:</strong> <span id="environment"></span></p>
+    </div>
+
+    <div class="url-test">
+        <h3>Generated URLs</h3>
+        <p><strong>API Base URL:</strong></p>
+        <div class="url" id="api-url"></div>
+
+        <p><strong>Login URL:</strong></p>
+        <div class="url" id="login-url"></div>
+
+        <p><strong>Signup URL:</strong></p>
+        <div class="url" id="signup-url"></div>
+    </div>
+
+    <div class="url-test">
+        <h3>Expected URLs for Development</h3>
+        <div class="status correct">
+            <strong>✅ Correct Login URL:</strong> http://localhost:8000/login?domain=yourdomain&source=plugin
+        </div>
+        <div class="status correct">
+            <strong>✅ Correct Signup URL:</strong> http://localhost:8000/register?domain=yourdomain&source=plugin
+        </div>
+    </div>
+
+    <div class="url-test">
+        <h3>URL Validation</h3>
+        <div id="validation-results"></div>
+    </div>
+
+    <script>
+        // Simulate the same logic used in the plugin
+        function getApiBaseUrl() {
+            var serverName = window.location.hostname;
+            if (serverName.includes('localhost') || serverName.includes('127.0.0.1') || serverName.includes('.local')) {
+                return 'http://localhost:8000';
+            } else {
+                return 'http://localhost:8000'; // Production fallback (same for testing)
+            }
+        }
+
+        function detectEnvironment() {
+            var serverName = window.location.hostname;
+            if (serverName.includes('localhost') || serverName.includes('127.0.0.1')) {
+                return 'Local Development (localhost)';
+            } else if (serverName.includes('.local')) {
+                return 'Local Development (.local domain)';
+            } else {
+                return 'Production';
+            }
+        }
+
+        // Update the page with current values
+        document.getElementById('hostname').textContent = window.location.hostname;
+        document.getElementById('environment').textContent = detectEnvironment();
+
+        var apiBaseUrl = getApiBaseUrl();
+        var currentDomain = window.location.hostname;
+
+        document.getElementById('api-url').textContent = apiBaseUrl;
+        document.getElementById('login-url').textContent = apiBaseUrl + '/login?domain=' + encodeURIComponent(currentDomain) + '&source=plugin';
+        document.getElementById('signup-url').textContent = apiBaseUrl + '/register?domain=' + encodeURIComponent(currentDomain) + '&source=plugin';
+
+        // Validation
+        var validationResults = document.getElementById('validation-results');
+        var loginUrl = apiBaseUrl + '/login?domain=' + encodeURIComponent(currentDomain) + '&source=plugin';
+
+        if (loginUrl.startsWith('http://localhost:8000/login')) {
+            validationResults.innerHTML = '<div class="status correct"><strong>✅ URLs are correct!</strong> Popup will redirect to Laravel dashboard.</div>';
+        } else {
+            validationResults.innerHTML = '<div class="status incorrect"><strong>❌ URLs are incorrect!</strong> Check API configuration.</div>';
+        }
+
+        // Test the popup system if loaded
+        if (typeof window.slvpLoginPopup !== 'undefined') {
+            validationResults.innerHTML += '<div class="status correct"><strong>✅ Popup system loaded</strong></div>';
+        } else {
+            validationResults.innerHTML += '<div class="status correct">ℹ️ Popup system not loaded (expected on this test page)</div>';
+        }
+
+        console.log('URL Test Results:', {
+            hostname: window.location.hostname,
+            environment: detectEnvironment(),
+            apiBaseUrl: apiBaseUrl,
+            loginUrl: loginUrl,
+            validation: loginUrl.startsWith('http://localhost:8000/login') ? 'PASS' : 'FAIL'
+        });
+    </script>
+</body>
+
+</html>

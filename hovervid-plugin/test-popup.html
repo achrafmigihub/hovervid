@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoverVid Popup Test</title>
+    <link rel="stylesheet" href="public/css/popup.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+
+<body>
+    <h1>HoverVid Login Popup Test</h1>
+    <p>This page tests the popup functionality for when a domain is not registered.</p>
+
+    <button id="test-popup-btn"
+        style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Test Popup
+    </button>
+
+    <button id="hide-popup-btn"
+        style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">
+        Hide Popup
+    </button>
+
+    <div style="margin-top: 20px;">
+        <h3>Test Scenarios:</h3>
+        <ul>
+            <li>Click "Test Popup" to show the login popup</li>
+            <li>Test the close button (×)</li>
+            <li>Test clicking outside the popup to close</li>
+            <li>Test the ESC key to close</li>
+            <li>Test the login and signup buttons</li>
+        </ul>
+    </div>
+
+    <script>
+        // Set up test environment variables
+        window.slvp_vars = {
+            is_domain_active: '0',
+            domain_exists: '0',
+            domain: window.location.hostname,
+            api_base_url: 'http://localhost:8000',
+            login_url: 'http://localhost:8000/login',
+            signup_url: 'http://localhost:8000/register'
+        };
+
+        // Debug: Log the configuration
+        console.log('Test environment configured with:', window.slvp_vars);
+    </script>
+
+    <script src="public/js/login-popup.js"></script>
+
+    <script>
+        jQuery(document).ready(function ($) {
+            $('#test-popup-btn').on('click', function () {
+                console.log('Testing popup...');
+                if (window.slvpLoginPopup) {
+                    window.slvpLoginPopup.show();
+                } else {
+                    console.error('Popup system not loaded');
+                }
+            });
+
+            $('#hide-popup-btn').on('click', function () {
+                if (window.slvpLoginPopup) {
+                    window.slvpLoginPopup.hide();
+                }
+            });
+
+            // Test automatic popup after 2 seconds
+            setTimeout(function () {
+                console.log('Auto-showing popup for demo...');
+                if (window.slvpLoginPopup) {
+                    window.slvpLoginPopup.show();
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+
+</html>

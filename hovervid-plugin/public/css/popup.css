@@ -1,0 +1,215 @@
+/* HoverVid Login Popup Styles */
+.slvp-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 999999;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+.slvp-popup-overlay.slvp-show {
+    display: flex;
+}
+
+.slvp-popup {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slvpPopupSlideIn 0.3s ease-out;
+    position: relative;
+}
+
+@keyframes slvpPopupSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.slvp-popup-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 24px;
+    border-radius: 12px 12px 0 0;
+    text-align: center;
+    position: relative;
+}
+
+.slvp-popup-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.slvp-popup-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.slvp-popup-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.slvp-popup-subtitle {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.9;
+    font-weight: 400;
+}
+
+.slvp-popup-body {
+    padding: 32px 24px;
+    text-align: center;
+}
+
+.slvp-popup-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 24px;
+    background: linear-gradient(135deg, #ff6b6b, #ffa726);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: white;
+}
+
+.slvp-popup-message {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 32px;
+}
+
+.slvp-popup-message strong {
+    color: #667eea;
+}
+
+.slvp-popup-domain {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 14px;
+    color: #495057;
+    word-break: break-all;
+}
+
+.slvp-popup-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.slvp-popup-button {
+    padding: 14px 28px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    justify-content: center;
+}
+
+.slvp-popup-button.slvp-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.slvp-popup-button.slvp-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.slvp-popup-button.slvp-secondary {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+}
+
+.slvp-popup-button.slvp-secondary:hover {
+    background: #e9ecef;
+    transform: translateY(-1px);
+}
+
+.slvp-popup-footer {
+    padding: 16px 24px;
+    background: #f8f9fa;
+    border-radius: 0 0 12px 12px;
+    text-align: center;
+    font-size: 14px;
+    color: #6c757d;
+}
+
+.slvp-popup-footer a {
+    color: #667eea;
+    text-decoration: none;
+}
+
+.slvp-popup-footer a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive design */
+@media (max-width: 576px) {
+    .slvp-popup {
+        margin: 16px;
+        width: calc(100% - 32px);
+    }
+
+    .slvp-popup-header {
+        padding: 20px 16px;
+    }
+
+    .slvp-popup-body {
+        padding: 24px 16px;
+    }
+
+    .slvp-popup-buttons {
+        flex-direction: column;
+    }
+
+    .slvp-popup-button {
+        width: 100%;
+    }
+}

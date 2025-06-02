@@ -58,6 +58,7 @@ class Content extends Model
         'video_url',
         'context',
         'url',
+        'page_name',
     ];
 
     /**

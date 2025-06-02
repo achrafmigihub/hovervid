@@ -13,6 +13,7 @@ use App\Http\Controllers\API\DomainController;
 use App\Http\Controllers\API\ClientDomainController;
 use App\Http\Controllers\API\PluginDomainController;
 use App\Http\Controllers\API\PluginStatusController;
+use App\Http\Controllers\Api\PluginController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,6 +31,11 @@ use App\Http\Controllers\API\PluginStatusController;
 Route::prefix('plugin')->group(function () {
     // Core domain validation endpoint - this is what the plugin calls during activation
     Route::post('/validate-domain', [PluginDomainController::class, 'checkDomainAuthorization']);
+    
+    // NEW: HoverVid plugin API endpoints
+    Route::post('/verify-domain', [PluginController::class, 'verifyDomain']);
+    Route::post('/update-status', [PluginController::class, 'updateStatus']);
+    Route::get('/domain-status', [PluginController::class, 'getDomainStatus']);
     
     // Plugin status tracking routes
     Route::post('/status/update', [PluginStatusController::class, 'updateStatus']);
@@ -193,6 +199,7 @@ Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\Se
     // Content management for client users
     Route::get('/content', [\App\Http\Controllers\API\ContentController::class, 'getClientContent']);
     Route::delete('/content/{contentId}', [\App\Http\Controllers\API\ContentController::class, 'rejectContent']);
+    Route::post('/content/{contentId}/upload-video', [\App\Http\Controllers\API\ContentController::class, 'uploadVideo']);
 });
 
 // Fallback route for API 404s - must be at the end of the file

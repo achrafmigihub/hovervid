@@ -4,8 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Get domain status from global variables (from centralized verifier)
     const domainStatus = window.slvp_vars ? {
-        isActive: window.slvp_vars.is_domain_active === true,
-        domainExists: window.slvp_vars.domain_exists === true,
+        isActive: window.slvp_vars.is_domain_active === '1',
+        domainExists: window.slvp_vars.domain_exists === '1',
         domain: window.slvp_vars.domain,
         message: window.slvp_vars.license_message
     } : null;
@@ -67,7 +67,8 @@ document.addEventListener('DOMContentLoaded', function() {
         currentTranslation: null,
         processingQueue: [],
         isProcessing: false,
-        processedCount: 0
+        processedCount: 0,
+        fingerprintsSent: false
     };
 
     let worker = null;
@@ -186,12 +187,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     const contentHash = generateContentHash(text);
                     const context = getElementContext(img);
+                    const pageName = getPageName();
                     
                     wrapper.setAttribute('data-slvp-fingerprint', JSON.stringify({
                         url: window.location.href,
                         context: context,
                         content_hash: contentHash,
-                        text: text
+                        text: text,
+                        page_name: pageName
                     }));
                     
                     wrapper.setAttribute('data-slvp-hash', contentHash);
@@ -246,10 +249,106 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function generateContentHash(text) {
-        return text.split('').reduce((a,b) => {
-            a = ((a << 5) - a) + b.charCodeAt(0);
-            return a & a;
-        }, 0).toString(16);
+        // Normalize text to prevent duplicates from whitespace differences
+        const normalizedText = text.trim()
+            .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
+            .replace(/\n+/g, ' ')  // Replace newlines with spaces
+            .toLowerCase();        // Convert to lowercase for consistency
+        
+        // Use a more consistent hash function similar to what's used in backend
+        let hash = 0;
+        if (normalizedText.length === 0) return hash.toString(16);
+        
+        for (let i = 0; i < normalizedText.length; i++) {
+            const char = normalizedText.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        
+        // Return as hex string with consistent length
+        return Math.abs(hash).toString(16).padStart(8, '0');
+    }
+
+    /**
+     * Extract page name from current page for better content organization
+     */
+    function getPageName() {
+        console.log('🔍 Getting page name...');
+        
+        // Method 1: Try to get page title first (clean and meaningful)
+        let pageName = document.title.trim();
+        console.log('📄 Document title:', pageName);
+        
+        // Clean up common title patterns
+        if (pageName) {
+            // Remove common patterns like "| Site Name" or "- Site Name"
+            pageName = pageName.replace(/\s*[-|]\s*[^-|]*$/, '').trim();
+            
+            // If we have a clean title that's not too generic, use it
+            if (pageName && 
+                pageName.length >= 3 && 
+                !pageName.toLowerCase().includes('untitled') &&
+                !pageName.toLowerCase().includes('document') &&
+                !pageName.toLowerCase().includes('new tab')) {
+                console.log('✅ Using cleaned title:', pageName);
+                return pageName.substring(0, 200); // Limit length
+            }
+        }
+        
+        // Method 2: Extract from URL path
+        const path = window.location.pathname;
+        console.log('🌐 URL path:', path);
+        
+        // Remove leading/trailing slashes and get meaningful part
+        const pathParts = path.split('/').filter(part => part.length > 0);
+        console.log('📂 Path parts:', pathParts);
+        
+        if (pathParts.length > 0) {
+            // Use the last meaningful part of the path
+            let urlBasedName = pathParts[pathParts.length - 1];
+            
+            // Clean up common file extensions and make it readable
+            urlBasedName = urlBasedName
+                .replace(/\.(html|php|jsp|asp|aspx|htm)$/i, '') // Remove extensions
+                .replace(/[-_]/g, ' ') // Replace dashes/underscores with spaces
+                .replace(/\b\w/g, l => l.toUpperCase()) // Title case
+                .trim();
+            
+            if (urlBasedName) {
+                console.log('✅ Using URL-based name:', urlBasedName);
+                return urlBasedName.substring(0, 200);
+            }
+        }
+        
+        // Method 3: Check for common page indicators in URL
+        const url = window.location.href.toLowerCase();
+        if (url.includes('/about')) {
+            console.log('✅ Detected About page');
+            return 'About Us';
+        } else if (url.includes('/contact')) {
+            console.log('✅ Detected Contact page');
+            return 'Contact';
+        } else if (url.includes('/product')) {
+            console.log('✅ Detected Products page');
+            return 'Products';
+        } else if (url.includes('/service')) {
+            console.log('✅ Detected Services page');
+            return 'Services';
+        } else if (url.includes('/blog') || url.includes('/news')) {
+            console.log('✅ Detected Blog/News page');
+            return 'Blog';
+        }
+        
+        // Method 4: Default based on path depth
+        if (pathParts.length === 0 || path === '/') {
+            console.log('✅ Using Homepage (root path)');
+            return 'Homepage';
+        }
+        
+        // Method 5: Last resort - use hostname
+        const hostname = window.location.hostname;
+        console.log('✅ Using hostname as fallback:', hostname);
+        return hostname.substring(0, 200);
     }
 
     function getElementContext(element) {
@@ -427,12 +526,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const textContent = node.nodeValue.trim();
         const contentHash = generateContentHash(textContent);
         const context = getElementContext(node.parentNode);
+        const pageName = getPageName();
         
         wrapper.setAttribute('data-slvp-fingerprint', JSON.stringify({
             url: window.location.href,
             context: context,
             content_hash: contentHash,
-            text: textContent
+            text: textContent,
+            page_name: pageName
         }));
         wrapper.setAttribute('data-slvp-hash', contentHash);
         
@@ -492,6 +593,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('----------------------------');
             const data = JSON.parse(wrapper.getAttribute('data-slvp-fingerprint'));
             console.log(`Text content: "${data.text}"`);
+            console.log(`Page: ${data.page_name || getPageName()}`);
             console.log(`Location: ${data.context}`);
             console.log(`Hash: ${data.content_hash}`);
             console.log('----------------------------');
@@ -521,12 +623,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 const contentHash = generateContentHash(fullText);
                 const context = getElementContext(element);
+                const pageName = getPageName();
                 
                 const fingerprintData = {
                     url: window.location.href,
                     context: context,
                     content_hash: contentHash,
-                    text: fullText
+                    text: fullText,
+                    page_name: pageName
                 };
                 
                 wrapper.setAttribute('data-slvp-fingerprint', JSON.stringify(fingerprintData));
@@ -549,6 +653,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('----------------------------');
                     const data = JSON.parse(wrapper.getAttribute('data-slvp-fingerprint'));
                     console.log(`Text content: "${data.text}"`);
+                    console.log(`Page: ${data.page_name || getPageName()}`);
                     console.log(`Location: ${data.context}`);
                     console.log(`Hash: ${data.content_hash}`);
                     console.log('----------------------------');
@@ -705,6 +810,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: textContent,
                     hash: fingerprintData.content_hash,
                     context: fingerprintData.context || 'Unknown',
+                    page_name: fingerprintData.page_name || getPageName(),
                     position: position,
                     index: index + 1
                 });
@@ -732,6 +838,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             elementsByContext[context].forEach(item => {
                 console.log(`[${item.index}] Text: "${item.text}"`);
+                console.log(`    Page: ${item.page_name}`);
                 console.log(`    Hash: ${item.hash}`);
                 console.log('   ---------------');
             });
@@ -742,6 +849,170 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bodyTextElements.length > maxDisplayElements) {
             console.log(`%c... and ${bodyTextElements.length - maxDisplayElements} more elements not shown`, 'color: #999; font-style: italic;');
         }
+    }
+    
+    /**
+     * Collect all fingerprint data and send it to the backend for storage
+     */
+    function sendFingerprintData() {
+        // Check if fingerprints have already been sent for this page load
+        if (state.fingerprintsSent) {
+            console.log('🔄 Fingerprints already sent for this page, skipping...');
+            return;
+        }
+        
+        const bodyTextElements = document.querySelectorAll('.slvp-text-wrapper[data-slvp-fingerprint]');
+        
+        if (bodyTextElements.length === 0) {
+            console.log('No fingerprint data to send');
+            return;
+        }
+        
+        const fingerprintData = [];
+        const uniqueHashes = new Set();
+        
+        bodyTextElements.forEach(element => {
+            try {
+                if (element.closest('#wpadminbar')) {
+                    return;
+                }
+                
+                const fingerprintAttr = element.getAttribute('data-slvp-fingerprint');
+                if (!fingerprintAttr) {
+                    return;
+                }
+                
+                const fingerprint = JSON.parse(fingerprintAttr);
+                
+                // Skip if already processed in this batch (frontend deduplication only)
+                if (uniqueHashes.has(fingerprint.content_hash)) {
+                    return;
+                }
+                
+                // Get text content and normalize it
+                let textContent = '';
+                if (element.childNodes.length > 0) {
+                    for (let i = 0; i < element.childNodes.length; i++) {
+                        const node = element.childNodes[i];
+                        if (node.nodeType === 3) {
+                            textContent = node.nodeValue;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!textContent) {
+                    textContent = element.textContent;
+                }
+                
+                textContent = textContent.trim();
+                
+                if (!textContent || textContent.length < 3) {
+                    return;
+                }
+                
+                // Filter out code-like content
+                if (textContent.includes('function') || 
+                    textContent.includes('var ') || 
+                    textContent.includes('let ') || 
+                    textContent.includes('const ') ||
+                    textContent.includes('return') ||
+                    textContent.includes('document.') ||
+                    textContent.includes('window.')) {
+                    return;
+                }
+                
+                // Normalize text for additional duplicate checking within this batch
+                const normalizedText = textContent.trim()
+                    .replace(/\s+/g, ' ')
+                    .replace(/\n+/g, ' ')
+                    .toLowerCase();
+                
+                // Check if we've already processed this normalized text in this batch
+                let isDuplicate = false;
+                for (const existing of fingerprintData) {
+                    const existingNormalized = existing.text.trim()
+                        .replace(/\s+/g, ' ')
+                        .replace(/\n+/g, ' ')
+                        .toLowerCase();
+                    if (existingNormalized === normalizedText) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                
+                if (isDuplicate) {
+                    console.log(`⏭️ Skipping duplicate normalized text in batch: "${normalizedText}"`);
+                    return;
+                }
+                
+                uniqueHashes.add(fingerprint.content_hash);
+                
+                fingerprintData.push({
+                    text: textContent,
+                    hash: fingerprint.content_hash,
+                    context: fingerprint.context || 'Unknown',
+                    page_name: fingerprint.page_name || getPageName()
+                });
+                
+            } catch (e) {
+                console.error('Error processing fingerprint element:', e);
+            }
+        });
+        
+        if (fingerprintData.length === 0) {
+            console.log('No valid fingerprint data to send');
+            return;
+        }
+        
+        // Mark fingerprints as being sent to prevent duplicates within the same page load
+        state.fingerprintsSent = true;
+        
+        // Debug: Show what page name we're using
+        const currentPageName = getPageName();
+        console.log(`📄 Current page name: "${currentPageName}"`);
+        console.log(`📤 Sending ${fingerprintData.length} fingerprints to backend...`);
+        console.log(`🔄 Backend will handle deduplication per domain`);
+        
+        // Debug: Show sample of data being sent
+        if (fingerprintData.length > 0) {
+            console.log('📋 Sample fingerprint data:');
+            console.log('   Text:', fingerprintData[0].text);
+            console.log('   Hash:', fingerprintData[0].hash);
+            console.log('   Context:', fingerprintData[0].context);
+            console.log('   Page Name:', fingerprintData[0].page_name);
+        }
+        
+        // Send to backend via AJAX
+        fetch(window.slvp_vars.ajax_url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'slvp_store_fingerprints',
+                fingerprint_data: JSON.stringify(fingerprintData),
+                security: window.slvp_vars.ajax_nonce
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Fingerprints stored successfully:', data.data);
+                console.log(`📊 Total sent: ${data.data.total_sent || 0}`);
+                console.log(`📊 Inserted: ${data.data.data?.inserted_count || 0}`);
+                console.log(`📊 Skipped (already exist in this domain): ${data.data.data?.skipped_count || 0}`);
+            } else {
+                console.warn('⚠️ Failed to store fingerprints:', data.data?.message || 'Unknown error');
+                // Reset flag on failure so it can be retried
+                state.fingerprintsSent = false;
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error sending fingerprints:', error);
+            // Reset flag on error so it can be retried
+            state.fingerprintsSent = false;
+        });
     }
 
     let currentTranslation = null;
@@ -781,6 +1052,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('🔍 Current Text Fingerprint:');
                 console.log('----------------------------');
                 console.log(`Text content: "${fingerprintData.text}"`);
+                console.log(`Page: ${fingerprintData.page_name || getPageName()}`);
                 console.log(`Location: ${fingerprintData.context}`);
                 console.log(`Hash: ${fingerprintData.content_hash}`);
                 console.log('----------------------------');
@@ -920,6 +1192,8 @@ document.addEventListener('DOMContentLoaded', function() {
     new MutationObserver(throttle(() => {
         if (location.href !== lastUrl) {
             lastUrl = location.href;
+            // Reset fingerprints flag for new page
+            state.fingerprintsSent = false;
             setTimeout(() => {
                 state.processedCount = 0;
                 initializeScanner();
@@ -929,7 +1203,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.slvpScanner = { 
         scan: scanFingerprints,
-        reinitialize: initializeScanner
+        reinitialize: initializeScanner,
+        sendFingerprints: sendFingerprintData,
+        resetFingerprintFlag: function() {
+            state.fingerprintsSent = false;
+            console.log('🔄 Fingerprint sent flag reset - fingerprints can be sent again');
+        },
+        getFingerprintStatus: function() {
+            return {
+                sent: state.fingerprintsSent,
+                elementsFound: document.querySelectorAll('.slvp-text-wrapper[data-slvp-fingerprint]').length,
+                domain: window.slvp_vars && window.slvp_vars.domain ? window.slvp_vars.domain : window.location.hostname
+            };
+        },
+        forceSendFingerprints: function() {
+            // Reset flag and force send
+            state.fingerprintsSent = false;
+            console.log('🔄 Force sending fingerprints...');
+            sendFingerprintData();
+        },
+        testPageName: function() {
+            console.log('🧪 Testing page name extraction...');
+            const pageName = getPageName();
+            console.log('📄 Result:', pageName);
+            return pageName;
+        },
+        debugFingerprints: function() {
+            console.log('🔍 Debugging fingerprint data...');
+            const elements = document.querySelectorAll('.slvp-text-wrapper[data-slvp-fingerprint]');
+            console.log(`📊 Found ${elements.length} fingerprint elements`);
+            
+            elements.forEach((element, index) => {
+                if (index < 5) { // Show first 5 for debugging
+                    try {
+                        const data = JSON.parse(element.getAttribute('data-slvp-fingerprint'));
+                        console.log(`[${index}] "${data.text}" - Page: "${data.page_name || 'MISSING'}"`);
+                    } catch (e) {
+                        console.log(`[${index}] Error parsing fingerprint data:`, e);
+                    }
+                }
+            });
+            
+            return elements.length;
+        }
     };
 
     toggleButton.addEventListener('click', function() {
@@ -954,6 +1270,10 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         initializeScanner();
         setTimeout(combineTextWithNearbyLinks, 1000);
+        setTimeout(() => {
+            console.log('🔄 Auto-sending fingerprints after page processing...');
+            sendFingerprintData();
+        }, 2500);
     }, 500);
 
     function combineTextWithNearbyLinks() {
@@ -1060,12 +1380,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 const contentHash = generateContentHash(baseText);
                 const context = getElementContext(baseWrapper);
+                const pageName = getPageName();
                 
                 const fingerprintData = {
                     url: window.location.href,
                     context: context,
                     content_hash: contentHash,
-                    text: baseText
+                    text: baseText,
+                    page_name: pageName
                 };
                 
                 baseWrapper.setAttribute('data-slvp-fingerprint', JSON.stringify(fingerprintData));

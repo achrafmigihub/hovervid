@@ -33,6 +33,10 @@ class SLVP_API_Handler {
         // Add endpoint for domain status check
         add_action('wp_ajax_slvp_check_domain', [$this, 'handle_domain_check']);
         add_action('wp_ajax_nopriv_slvp_check_domain', [$this, 'handle_domain_check']);
+        
+        // Add endpoint for storing fingerprint content
+        add_action('wp_ajax_slvp_store_fingerprints', [$this, 'handle_fingerprint_storage']);
+        add_action('wp_ajax_nopriv_slvp_store_fingerprints', [$this, 'handle_fingerprint_storage']);
     }
 
     /**
@@ -97,6 +101,87 @@ class SLVP_API_Handler {
         } catch (Exception $e) {
             error_log('HoverVid AJAX Domain Check Error: ' . $e->getMessage());
             wp_send_json_error(['message' => 'System error occurred']);
+        }
+    }
+    
+    /**
+     * Handle fingerprint content storage via AJAX
+     */
+    public function handle_fingerprint_storage() {
+        // Verify nonce for security
+        if (!check_ajax_referer('slvp_nonce', 'security', false)) {
+            wp_send_json_error(['message' => 'Security check failed']);
+            return;
+        }
+        
+        // Check if fingerprint data is provided
+        if (!isset($_POST['fingerprint_data']) || empty($_POST['fingerprint_data'])) {
+            wp_send_json_error(['message' => 'Missing fingerprint data']);
+            return;
+        }
+        
+        try {
+            // Get current domain
+            $current_domain = $_SERVER['HTTP_HOST'] ?? '';
+            
+            if (empty($current_domain)) {
+                wp_send_json_error(['message' => 'Could not determine domain']);
+                return;
+            }
+            
+            // Decode fingerprint data
+            $fingerprint_data = json_decode(stripslashes($_POST['fingerprint_data']), true);
+            
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                wp_send_json_error(['message' => 'Invalid fingerprint data format']);
+                return;
+            }
+            
+            // Validate fingerprint data structure
+            if (!is_array($fingerprint_data)) {
+                wp_send_json_error(['message' => 'Fingerprint data must be an array']);
+                return;
+            }
+            
+            // Validate each fingerprint item
+            $validated_data = [];
+            foreach ($fingerprint_data as $item) {
+                if (!isset($item['text']) || !isset($item['hash']) || !isset($item['context'])) {
+                    continue; // Skip invalid items
+                }
+                
+                $validated_data[] = [
+                    'text' => sanitize_text_field($item['text']),
+                    'hash' => sanitize_text_field($item['hash']),
+                    'context' => sanitize_text_field($item['context']),
+                    'page_name' => sanitize_text_field($item['page_name'] ?? 'Unknown Page')
+                ];
+            }
+            
+            if (empty($validated_data)) {
+                wp_send_json_error(['message' => 'No valid fingerprint data found']);
+                return;
+            }
+            
+            // Get API client instance
+            $api_client = SLVP_API_Client::get_instance();
+            
+            // Store fingerprint data via API
+            $result = $api_client->store_fingerprint_content($current_domain, $validated_data);
+            
+            if ($result) {
+                wp_send_json_success([
+                    'message' => 'Fingerprint data stored successfully',
+                    'data' => $result['data'] ?? [],
+                    'total_sent' => count($validated_data)
+                ]);
+            } else {
+                wp_send_json_error(['message' => 'Failed to store fingerprint data']);
+            }
+            
+        } catch (Exception $e) {
+            error_log('HoverVid Fingerprint Storage Error: ' . $e->getMessage());
+            wp_send_json_error(['message' => 'System error occurred while storing fingerprints']);
         }
     }
 } 
