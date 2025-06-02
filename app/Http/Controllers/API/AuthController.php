@@ -308,7 +308,8 @@ class AuthController extends Controller
                 $user->tokens()->delete();
                 
                 // Set user status to inactive if they have no active sessions
-                $hasOtherActiveSessions = \App\Models\Session::where('user_id', $user->id)
+                $hasOtherActiveSessions = DB::table('sessions')
+                    ->where('user_id', $user->id)
                     ->where('id', '<>', $request->session()->getId())
                     ->where('is_active', true)
                     ->where('expires_at', '>', now())
@@ -316,7 +317,36 @@ class AuthController extends Controller
                 
                 if (!$hasOtherActiveSessions) {
                     // Update user status to inactive
-                    $user->update(['status' => \App\Enums\UserStatusEnum::INACTIVE->value]);
+                    DB::table('users')
+                        ->where('id', $user->id)
+                        ->update(['status' => \App\Enums\UserStatusEnum::INACTIVE->value]);
+                }
+            }
+            
+            // Get current session ID before logout
+            $sessionId = $request->session()->getId();
+            
+            // Mark the current session as explicitly logged out in the database
+            if ($sessionId) {
+                try {
+                    DB::table('sessions')
+                        ->where('id', $sessionId)
+                        ->update([
+                            'is_active' => false,
+                            'expires_at' => now(),
+                            'payload' => json_encode(['logged_out' => true, 'logout_time' => now()->timestamp]),
+                            'updated_at' => now()
+                        ]);
+                    
+                    Log::info('Session marked as logged out in database', [
+                        'session_id' => $sessionId,
+                        'user_id' => $user ? $user->id : null
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to mark session as logged out in database', [
+                        'session_id' => $sessionId,
+                        'error' => $e->getMessage()
+                    ]);
                 }
             }
             
@@ -563,6 +593,53 @@ class AuthController extends Controller
                             'is_active' => $session->is_active ?? 'unknown',
                             'ip_address' => $session->ip_address ?? 'unknown'
                         ]);
+                        
+                        // Check if session was explicitly logged out
+                        $payload = null;
+                        try {
+                            $payload = json_decode($session->payload, true);
+                        } catch (\Exception $e) {
+                            Log::warning('Could not decode session payload', [
+                                'session_id' => $sessionId,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
+                        
+                        // If session was explicitly logged out, deny recovery
+                        if ($payload && isset($payload['logged_out']) && $payload['logged_out'] === true) {
+                            Log::info('Session was explicitly logged out, denying recovery', [
+                                'session_id' => $sessionId,
+                                'logout_time' => $payload['logout_time'] ?? 'unknown'
+                            ]);
+                            
+                            return response()->json([
+                                'status' => 'error', 
+                                'message' => 'Session was terminated due to logout',
+                                'debug' => [
+                                    'session_id' => $sessionId,
+                                    'logged_out' => true
+                                ]
+                            ], 401);
+                        }
+                        
+                        // Check if session is inactive or expired
+                        if (!$session->is_active || $session->expires_at <= now()) {
+                            Log::info('Session is inactive or expired', [
+                                'session_id' => $sessionId,
+                                'is_active' => $session->is_active,
+                                'expires_at' => $session->expires_at
+                            ]);
+                            
+                            return response()->json([
+                                'status' => 'error', 
+                                'message' => 'Session is inactive or expired',
+                                'debug' => [
+                                    'session_id' => $sessionId,
+                                    'is_active' => $session->is_active,
+                                    'expires_at' => $session->expires_at
+                                ]
+                            ], 401);
+                        }
                         
                         if ($session->user_id) {
                             try {
