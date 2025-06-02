@@ -59,19 +59,34 @@ class SLVP_API_Client {
      * @return string
      */
     private function get_api_base_url() {
+        // Check for WordPress constant first (can be set in wp-config.php)
+        if (defined('HOVERVID_API_URL') && constant('HOVERVID_API_URL')) {
+            return rtrim(constant('HOVERVID_API_URL'), '/') . '/api';
+        }
+        
+        // Check for environment variable
+        $env_url = getenv('HOVERVID_API_URL');
+        if ($env_url) {
+            return rtrim($env_url, '/') . '/api';
+        }
+        
         // Check if we're in local development
         $server_name = $_SERVER['SERVER_NAME'] ?? '';
+        $http_host = $_SERVER['HTTP_HOST'] ?? '';
         
         if (strpos($server_name, 'localhost') !== false || 
             strpos($server_name, '127.0.0.1') !== false ||
-            strpos($server_name, '.local') !== false) {
+            strpos($server_name, '.local') !== false ||
+            strpos($http_host, 'localhost') !== false ||
+            strpos($http_host, '127.0.0.1') !== false ||
+            strpos($http_host, '.local') !== false) {
             // Local development - Laravel should be running on localhost:8000
             return 'http://localhost:8000/api';
         }
         
-        // Production - UPDATE THIS to your actual Laravel domain
-        // Replace 'localhost:8000' with your production Laravel domain
-        return 'http://localhost:8000/api'; // Change this to your production Laravel URL when deploying
+        // Production fallback - you should always set HOVERVID_API_URL constant or environment variable
+        // This is a fallback that you should replace with your actual production URL
+        return 'https://your-laravel-backend.com/api'; // Replace with your production Laravel URL
     }
     
     /**
@@ -264,5 +279,27 @@ class SLVP_API_Client {
      */
     public function get_api_url() {
         return $this->api_base_url;
+    }
+    
+    /**
+     * Get detailed debug information for troubleshooting
+     *
+     * @return array Debug information
+     */
+    public function get_debug_info() {
+        $current_domain = $_SERVER['HTTP_HOST'] ?? '';
+        
+        return [
+            'api_base_url' => $this->api_base_url,
+            'current_domain' => $current_domain,
+            'server_name' => $_SERVER['SERVER_NAME'] ?? '',
+            'http_host' => $_SERVER['HTTP_HOST'] ?? '',
+            'has_hovervid_constant' => defined('HOVERVID_API_URL'),
+            'hovervid_constant_value' => defined('HOVERVID_API_URL') ? constant('HOVERVID_API_URL') : null,
+            'env_hovervid_url' => getenv('HOVERVID_API_URL') ?: null,
+            'connectivity_test' => $this->test_connectivity(),
+            'php_version' => PHP_VERSION,
+            'wordpress_version' => get_bloginfo('version'),
+        ];
     }
 } 

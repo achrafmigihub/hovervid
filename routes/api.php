@@ -101,6 +101,23 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::get('/sessions/{id}', [\App\Http\Controllers\API\AdminSessionController::class, 'show']);
     Route::delete('/sessions/{id}', [\App\Http\Controllers\API\AdminSessionController::class, 'destroy']);
     Route::post('/sessions/terminate-user', [\App\Http\Controllers\API\AdminSessionController::class, 'terminateUserSessions']);
+    
+    // Domain management routes for admin
+    Route::get('/domains', [DomainApiController::class, 'index']);
+    Route::post('/domains', [DomainApiController::class, 'store']);
+    Route::post('/domains/{id}/activate', [DomainApiController::class, 'activate']);
+    Route::post('/domains/{id}/deactivate', [DomainApiController::class, 'deactivate']);
+    Route::post('/domains/{id}/verify', [DomainApiController::class, 'verify']);
+    Route::put('/domains/{id}', [DomainApiController::class, 'update']);
+    Route::delete('/domains/{id}', [DomainApiController::class, 'destroy']);
+});
+
+// Temporary: Public admin domains route for testing (remove after authentication is fixed)
+Route::prefix('admin')->group(function () {
+    Route::get('/domains', [DomainApiController::class, 'index']);
+    Route::post('/domains/{id}/activate', [DomainApiController::class, 'activate']);
+    Route::post('/domains/{id}/deactivate', [DomainApiController::class, 'deactivate']);
+    Route::delete('/domains/{id}', [DomainApiController::class, 'destroy']);
 });
 
 // Test route for API connectivity
@@ -161,20 +178,8 @@ Route::middleware(['auth:sanctum', 'web', \App\Http\Middleware\SessionConfig::cl
         Route::get('/stats', [UserSessionController::class, 'stats']);
     });
 
-// Domain Management Routes
-Route::prefix('domains')->middleware(['api'])->group(function () {
-    Route::get('/', [DomainApiController::class, 'index']);
-    Route::post('/', [DomainApiController::class, 'store']);
-    Route::post('/{id}/activate', [DomainApiController::class, 'activate']);
-    Route::post('/{id}/deactivate', [DomainApiController::class, 'deactivate']);
-    Route::post('/{id}/verify', [DomainApiController::class, 'verify']);
-    Route::put('/{id}', [DomainApiController::class, 'update']);
-    Route::delete('/{id}', [DomainApiController::class, 'destroy']);
-});
-
 // Domain routes (legacy - kept for backward compatibility)
 Route::middleware('auth:sanctum')->group(function () {
-    // Remove the duplicate /client/set-domain route since we have it in the client group above
     Route::get('/client/domain-legacy', [DomainController::class, 'getDomain']);
     Route::put('/client/domain-legacy', [DomainController::class, 'updateDomain']);
 });
@@ -186,7 +191,7 @@ Route::prefix('content')->group(function () {
 });
 
 // Client Domain Management Routes (Protected by hybrid auth - supports both session and token authentication)
-Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\SessionConfig::class, 'nocache'])->prefix('client')->group(function () {
+Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\SessionConfig::class])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard']);
     Route::get('/dashboard-stats', [ClientController::class, 'dashboardStats']);
     

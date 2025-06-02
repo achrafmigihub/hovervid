@@ -2,7 +2,7 @@ import axios from 'axios'
 import { ofetch } from 'ofetch'
 
 // Configure axios defaults
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+axios.defaults.baseURL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api'
 axios.defaults.withCredentials = true // Include cookies in requests
 
 // Intercept axios requests to add auth token
@@ -25,7 +25,7 @@ axios.interceptors.request.use(config => {
 })
 
 export const $api = ofetch.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api',
   async onRequest({ options }) {
     // Initialize headers if not set
     if (!options.headers) {

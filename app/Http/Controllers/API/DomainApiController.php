@@ -39,32 +39,32 @@ class DomainApiController extends Controller
             $query = DB::table('domains as d')
                 ->select([
                     'd.id',
-                    'd.domain_name as domain',
+                    'd.domain',
                     'd.platform',
                     'd.created_at',
-                    'd.status',
+                    'd.plugin_status as status',
                     'd.is_active',
                     'd.is_verified',
+                    'd.user_id',
                     'u.name as owner_name',
                     'u.email as owner_email',
-                    DB::raw('COUNT(DISTINCT l.id) as license_count')
+                    'u.role as owner_role'
                 ])
                 ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
-                ->leftJoin('licenses as l', 'l.user_id', '=', 'd.user_id')
-                ->groupBy(['d.id', 'd.domain_name', 'd.platform', 'd.created_at', 'd.status', 'd.is_active', 'd.is_verified', 'u.name', 'u.email']);
+                ->groupBy(['d.id', 'd.domain', 'd.platform', 'd.created_at', 'd.plugin_status', 'd.is_active', 'd.is_verified', 'd.user_id', 'u.name', 'u.email', 'u.role']);
             
             // Apply search filter if provided
             if (!empty($search)) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('d.domain_name', 'ILIKE', "%{$search}%")
+                    $q->where('d.domain', 'ILIKE', "%{$search}%")
                         ->orWhere('u.name', 'ILIKE', "%{$search}%")
                         ->orWhere('u.email', 'ILIKE', "%{$search}%");
                 });
             }
             
-            // Apply status filter if provided
+            // Apply status filter if provided (now filtering by plugin_status)
             if (!empty($status)) {
-                $query->where('d.status', $status);
+                $query->where('d.plugin_status', $status);
             }
             
             // Calculate total count before pagination
@@ -72,20 +72,20 @@ class DomainApiController extends Controller
                 ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
                 ->when(!empty($search), function ($q) use ($search) {
                     $q->where(function ($subQuery) use ($search) {
-                        $subQuery->where('d.domain_name', 'ILIKE', "%{$search}%")
+                        $subQuery->where('d.domain', 'ILIKE', "%{$search}%")
                                 ->orWhere('u.name', 'ILIKE', "%{$search}%")
                                 ->orWhere('u.email', 'ILIKE', "%{$search}%");
                     });
                 })
                 ->when(!empty($status), function ($q) use ($status) {
-                    $q->where('d.status', $status);
+                    $q->where('d.plugin_status', $status);
                 })
                 ->count();
             
             // Apply sorting and pagination
             $sortColumn = $sortBy;
             if ($sortBy === 'domain') {
-                $sortColumn = 'domain_name';
+                $sortColumn = 'domain';
             }
             
             $query->orderBy("d.{$sortColumn}", $sortDir)
@@ -139,10 +139,10 @@ class DomainApiController extends Controller
             // Begin transaction
             DB::beginTransaction();
             
-            // Update domain status
+            // Update domain plugin_status
             $updated = DB::update("
                 UPDATE domains 
-                SET status = 'active', is_active = true, updated_at = CURRENT_TIMESTAMP 
+                SET plugin_status = 'active', is_active = true, updated_at = CURRENT_TIMESTAMP 
                 WHERE id = ?
             ", [$id]);
             
@@ -181,10 +181,10 @@ class DomainApiController extends Controller
             // Begin transaction
             DB::beginTransaction();
             
-            // Update domain status
+            // Update domain plugin_status
             $updated = DB::update("
                 UPDATE domains 
-                SET status = 'inactive', is_active = false, updated_at = CURRENT_TIMESTAMP 
+                SET plugin_status = 'inactive', is_active = false, updated_at = CURRENT_TIMESTAMP 
                 WHERE id = ?
             ", [$id]);
             

@@ -25,16 +25,6 @@ class ClientDomainController extends Controller
     public function setDomain(DomainRequest $request): JsonResponse
     {
         try {
-            // Log incoming request for debugging
-            Log::info('ClientDomainController::setDomain called', [
-                'method' => $request->method(),
-                'url' => $request->url(),
-                'headers' => $request->headers->all(),
-                'body' => $request->all(),
-                'user_id' => Auth::id(),
-                'user_role' => Auth::user() ? Auth::user()->role : 'no_user'
-            ]);
-            
             $user = Auth::user();
             
             // Get user role - handle both string and enum values
@@ -42,12 +32,6 @@ class ClientDomainController extends Controller
             $requiredRole = UserRoleEnum::CLIENT->value;
             
             if (!$user || $userRole !== $requiredRole) {
-                Log::warning('Domain set attempt by unauthorized user', [
-                    'user_id' => $user ? $user->id : null,
-                    'user_role' => $userRole,
-                    'required_role' => $requiredRole
-                ]);
-                
                 return response()->json([
                     'success' => false,
                     'message' => 'Only client users can register domains'

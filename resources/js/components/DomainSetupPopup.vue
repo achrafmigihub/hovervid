@@ -91,9 +91,22 @@ const submitDomain = async () => {
     console.log('Making API call to:', '/client/set-domain')
     console.log('Request payload:', { domain: domainInput.value.trim() })
     console.log('Request method:', 'post')
+    console.log('Base URL from axios:', (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api')
+    console.log('Full URL should be:', ((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api') + '/client/set-domain')
 
-    // Use the default axios instance which has proper authentication configured
-    const response = await axios.post('/client/set-domain', {
+    // Submit domain to backend using session authentication only (no bearer token)
+    // Create a new axios instance without auth token for this specific request
+    const sessionApi = axios.create({
+      baseURL: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      withCredentials: true // Use session cookies
+    })
+    
+    const response = await sessionApi.post('/client/set-domain', {
       domain: domainInput.value.trim()
     })
     
@@ -118,24 +131,12 @@ const submitDomain = async () => {
       message: error.message,
       status: error.status,
       statusText: error.statusText,
-      response: error.response?.data,
-      config: error.config
+      originalError: error.originalError,
+      rawResponseData: error.rawResponseData
     })
     
-    // Handle specific error cases
-    if (error.response?.status === 405) {
-      domainError.value = 'Method not allowed. Please refresh the page and try again.'
-    } else if (error.response?.status === 401) {
-      domainError.value = 'Authentication required. Please login again.'
-      // Redirect to login after a short delay
-      setTimeout(() => {
-        authStore.logout(true) // silent logout
-      }, 2000)
-    } else if (error.response?.status === 403) {
-      domainError.value = 'Access denied. Only client users can set domains.'
-    } else {
-      domainError.value = error.response?.data?.message || error.message || 'An error occurred while setting the domain'
-    }
+    // The apiCall utility provides better error messages
+    domainError.value = error.message || 'An error occurred while setting the domain'
   } finally {
     isSubmittingDomain.value = false
   }

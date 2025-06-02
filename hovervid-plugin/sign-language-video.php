@@ -30,6 +30,7 @@ require_once SLVP_PLUGIN_PATH . 'includes/class-database.php';
 require_once SLVP_PLUGIN_PATH . 'includes/class-api-client.php';
 require_once SLVP_PLUGIN_PATH . 'includes/class-domain-verifier.php';
 require_once SLVP_PLUGIN_PATH . 'includes/class-video-player.php';
+require_once SLVP_PLUGIN_PATH . 'includes/class-debug-admin.php';
 
 /**
  * Check if the current domain is authorized
@@ -287,27 +288,22 @@ add_action('admin_notices', 'slvp_api_error_notice');
  * Plugin deactivation hook - Update plugin status to inactive
  */
 function slvp_deactivate_plugin() {
-    $current_domain = $_SERVER['HTTP_HOST'] ?? 'unknown';
-    
-    // Update plugin status to inactive via API
+    // Update plugin status to inactive
     try {
+        $current_domain = $_SERVER['HTTP_HOST'] ?? '';
         $api_client = SLVP_API_Client::get_instance();
-        $update_result = $api_client->update_status($current_domain, 'inactive');
-        
-        if ($update_result && $update_result['success']) {
-            error_log("HoverVid Plugin: Status updated to 'inactive' for domain: {$current_domain}");
-        } else {
-            error_log("HoverVid Plugin: Failed to update status to 'inactive' for domain: {$current_domain}");
-        }
+        $api_client->update_status($current_domain, 'inactive');
     } catch (Exception $e) {
-        error_log('HoverVid Plugin: API status update failed during deactivation - ' . $e->getMessage());
+        // Log the error but don't prevent deactivation
+        error_log('HoverVid Plugin: Failed to update status on deactivation - ' . $e->getMessage());
     }
-    
-    // Clean up any stored options
-    delete_option('hovervid_needs_deactivation');
-    delete_transient('hovervid_activation_error');
 }
 register_deactivation_hook(__FILE__, 'slvp_deactivate_plugin');
+
+// Initialize debug admin page
+if (is_admin()) {
+    SLVP_Debug_Admin::init();
+}
 
 // Initialize plugin
 add_action('plugins_loaded', 'slvp_init');

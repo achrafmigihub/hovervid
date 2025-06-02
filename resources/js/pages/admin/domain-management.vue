@@ -358,7 +358,7 @@ const headers = [
     key: 'platform',
   },
   {
-    title: 'Status',
+    title: 'Plugin Status',
     key: 'status',
   },
   {
@@ -431,13 +431,15 @@ const isExpiringSoon = dateString => {
   }
 }
 
-// Functions for domain statuses
+// Functions for domain statuses (now handling plugin_status)
 const resolveDomainStatusVariant = status => {
-  const statusLower = status.toLowerCase()
+  const statusLower = (status || '').toLowerCase()
   if (statusLower === 'active') return 'success'
+  if (statusLower === 'inactive') return 'secondary'
   if (statusLower === 'pending') return 'warning'
   if (statusLower === 'suspended') return 'error'
-  return 'secondary' // inactive
+  if (statusLower === 'disabled') return 'error'
+  return 'secondary' // default for unknown statuses
 }
 
 // Functions for user roles
@@ -474,10 +476,11 @@ const fetchDomains = async () => {
     if (sortBy.value) params.append('sort_by', sortBy.value)
     if (orderBy.value) params.append('sort_dir', orderBy.value.toLowerCase())
     
-    // Make API call to fetch domains
-    const response = await fetch(`/api/domains?${params.toString()}`, {
+    // Make API call to fetch domains using admin endpoint
+    const response = await fetch(`/api/admin/domains?${params.toString()}`, {
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     })
     
@@ -527,12 +530,13 @@ const activateDomain = async (domainId) => {
   try {
     activating.value = domainId
     
-    // Call API to activate domain
-    const response = await fetch(`/api/domains/${domainId}/activate`, {
+    // Call API to activate domain using admin endpoint
+    const response = await fetch(`/api/admin/domains/${domainId}/activate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     })
     
@@ -575,12 +579,13 @@ const deactivateDomain = async (domainId) => {
   try {
     deactivating.value = domainId
     
-    // Call API to deactivate domain
-    const response = await fetch(`/api/domains/${domainId}/deactivate`, {
+    // Call API to deactivate domain using admin endpoint
+    const response = await fetch(`/api/admin/domains/${domainId}/deactivate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     })
     
@@ -637,12 +642,13 @@ const deleteDomain = async () => {
   try {
     isLoading.value = true
     
-    // Call API to delete domain
-    const response = await fetch(`/api/domains/${domainToDelete.value.id}`, {
+    // Call API to delete domain using admin endpoint
+    const response = await fetch(`/api/admin/domains/${domainToDelete.value.id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     })
     
