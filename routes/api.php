@@ -130,6 +130,30 @@ Route::get('/ping', function () {
     ]);
 });
 
+// Debug route for domain checking (temporary for debugging)
+Route::middleware(['auth:sanctum'])->get('/debug/user-domain', function (Request $request) {
+    $user = $request->user();
+    if (!$user) {
+        return response()->json(['error' => 'Unauthenticated'], 401);
+    }
+    
+    // Load fresh user with domain
+    $user = $user->fresh();
+    $user->load('domain');
+    
+    return response()->json([
+        'user_id' => $user->id,
+        'email' => $user->email,
+        'role' => $user->role,
+        'domain_id' => $user->domain_id,
+        'domain_relationship' => $user->domain,
+        'has_domain_id' => !empty($user->domain_id),
+        'has_domain_relationship' => !empty($user->domain),
+        'domain_count' => $user->domains()->count(),
+        'active_domains' => $user->domains()->where('is_active', true)->get()
+    ]);
+});
+
 // User Management Routes
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     // User Management

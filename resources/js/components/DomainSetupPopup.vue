@@ -1,7 +1,7 @@
 <script setup>
 import { useAuthStore } from '@/stores/useAuthStore'
 import axios from 'axios'
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 // Get the properly configured API instance
@@ -19,13 +19,21 @@ const domainInput = ref('')
 const isSubmittingDomain = ref(false)
 const domainError = ref('')
 const isLoggingOut = ref(false)
+const periodicCheckInterval = ref(null)
 
 // User data
 const user = computed(() => authStore.user)
 
 // Check if user has a domain
 const hasDomain = computed(() => {
-  return user.value?.domain_id || user.value?.domain
+  const userValue = user.value
+  if (!userValue) return false
+  
+  // Check for domain_id or domain relationship object
+  const hasDomainId = !!(userValue.domain_id)
+  const hasDomainObject = !!(userValue.domain && userValue.domain.id)
+  
+  return hasDomainId || hasDomainObject
 })
 
 // Check if user is a client
@@ -33,8 +41,46 @@ const isClient = computed(() => {
   return user.value?.role?.toLowerCase() === 'client'
 })
 
+// Force refresh user data and check domain status
+const refreshUserAndCheckDomain = async () => {
+  try {
+    // Fetch fresh user data from the backend
+    await authStore.fetchUser()
+    
+    // Wait a bit for the computed property to update
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // Check again after refresh
+    checkAndShowPopup()
+  } catch (error) {
+    console.error('Error refreshing user data:', error)
+  }
+}
+
 // Check if popup should be shown
 const checkAndShowPopup = () => {
+  const domainCheck = hasDomain.value
+  const clientCheck = isClient.value
+  const authCheck = authStore.isAuthenticated
+  
+  // Debug logging to help track domain status
+  console.log('Domain popup check:', {
+    user: user.value ? {
+      id: user.value.id,
+      email: user.value.email,
+      role: user.value.role,
+      domain_id: user.value.domain_id,
+      domain: user.value.domain ? {
+        id: user.value.domain.id,
+        domain: user.value.domain.domain
+      } : null
+    } : null,
+    hasDomain: domainCheck,
+    isClient: clientCheck,
+    isAuthenticated: authCheck,
+    shouldShowPopup: clientCheck && !domainCheck && authCheck
+  })
+  
   if (isClient.value && !hasDomain.value && authStore.isAuthenticated) {
     showDomainPopup.value = true
   } else {
@@ -47,9 +93,43 @@ watch([user, isClient], () => {
   checkAndShowPopup()
 }, { immediate: true })
 
+// Setup periodic check when popup is visible
+const setupPeriodicCheck = () => {
+  // Clear any existing interval
+  if (periodicCheckInterval.value) {
+    clearInterval(periodicCheckInterval.value)
+  }
+  
+  // Set up new interval to check every 30 seconds when popup is visible
+  periodicCheckInterval.value = setInterval(async () => {
+    if (showDomainPopup.value) {
+      console.log('Periodic domain check triggered')
+      await refreshUserAndCheckDomain()
+    }
+  }, 30000) // 30 seconds
+}
+
+// Clear periodic check
+const clearPeriodicCheck = () => {
+  if (periodicCheckInterval.value) {
+    clearInterval(periodicCheckInterval.value)
+    periodicCheckInterval.value = null
+  }
+}
+
+// Watch for popup visibility changes
+watch(showDomainPopup, (newValue) => {
+  if (newValue) {
+    setupPeriodicCheck()
+  } else {
+    clearPeriodicCheck()
+  }
+})
+
 // Initialize on mount
-onMounted(() => {
-  checkAndShowPopup()
+onMounted(async () => {
+  // Force refresh user data on mount to ensure we have the latest domain info
+  await refreshUserAndCheckDomain()
 })
 
 // Handle logout
@@ -115,8 +195,10 @@ const submitDomain = async () => {
     console.log('API call successful:', data)
 
     if (data.success) {
-      // Update user data
-      await authStore.fetchUser()
+      // Update user data with better refresh logic
+      await refreshUserAndCheckDomain()
+      
+      // Clear form data
       showDomainPopup.value = false
       domainInput.value = ''
       
@@ -148,6 +230,11 @@ const closeDomainPopup = () => {
     showDomainPopup.value = false
   }
 }
+
+// Cleanup logic when component is unmounted
+onUnmounted(() => {
+  clearPeriodicCheck()
+})
 </script>
 
 <template>

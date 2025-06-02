@@ -351,12 +351,18 @@ class AuthController extends Controller
                 ], 401);
             }
             
+            // Refresh user from database to get latest data
+            $user = $user->fresh();
+            
             // Load the user with domain relationship
             $user->load('domain');
             
             // Make sure the role is always returned in a consistent format
             $userData = $user->toArray();
             $userData['role'] = strtolower($userData['role'] ?? 'client');
+            
+            // Explicitly ensure domain_id is included in the response
+            $userData['domain_id'] = $user->domain_id;
             
             // Get security issues from session if available
             $securityIssues = null;
