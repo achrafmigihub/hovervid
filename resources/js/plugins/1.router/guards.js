@@ -59,9 +59,25 @@ export const setupGuards = router => {
   )
 
   // Add history state changes listener to handle back/forward navigation
-  window.addEventListener('popstate', () => {
+  window.addEventListener('popstate', (event) => {
     const authStore = useAuthStore()
     const currentRoute = router.currentRoute.value
+    
+    // Check if user has explicitly logged out recently
+    const userLoggedOut = localStorage.getItem('userLoggedOut')
+    const logoutTimestamp = localStorage.getItem('logoutTimestamp')
+    
+    if (userLoggedOut === 'true') {
+      const logoutTime = logoutTimestamp ? parseInt(logoutTimestamp) : 0
+      const oneHourAgo = Date.now() - (60 * 60 * 1000)
+      
+      if (logoutTime > oneHourAgo) {
+        // User logged out recently, force them to login page
+        console.log('Detected navigation after recent logout, redirecting to login')
+        router.replace({ name: 'login' })
+        return
+      }
+    }
     
     // If user is not authenticated and trying to access a protected route
     if (!authStore.isAuthenticated && currentRoute && 
@@ -109,6 +125,27 @@ export const setupGuards = router => {
       isClient: authStore.isClient,
       toMeta: to.meta
     })
+    
+    // Check if user has explicitly logged out recently
+    const userLoggedOut = localStorage.getItem('userLoggedOut')
+    const logoutTimestamp = localStorage.getItem('logoutTimestamp')
+    
+    if (userLoggedOut === 'true') {
+      const logoutTime = logoutTimestamp ? parseInt(logoutTimestamp) : 0
+      const oneHourAgo = Date.now() - (60 * 60 * 1000)
+      
+      if (logoutTime > oneHourAgo) {
+        // User logged out recently, only allow access to auth pages
+        if (to.name !== 'login' && to.name !== 'register' && to.name !== 'forgot-password') {
+          console.log('User logged out recently, redirecting to login')
+          return { name: 'login' }
+        }
+      } else {
+        // Logout was more than an hour ago, clear the flags
+        localStorage.removeItem('userLoggedOut')
+        localStorage.removeItem('logoutTimestamp')
+      }
+    }
     
     // Additional check for session validity on each navigation
     // This ensures browser back button won't restore invalidated sessions

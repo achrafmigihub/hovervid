@@ -35,6 +35,27 @@ export const useAuthStore = defineStore('auth', {
     async init() {
       console.log('Auth store init started')
       try {
+        // Check if user has explicitly logged out recently
+        const userLoggedOut = localStorage.getItem('userLoggedOut')
+        const logoutTimestamp = localStorage.getItem('logoutTimestamp')
+        
+        if (userLoggedOut === 'true') {
+          // Check if logout was recent (within last hour)
+          const logoutTime = logoutTimestamp ? parseInt(logoutTimestamp) : 0
+          const oneHourAgo = Date.now() - (60 * 60 * 1000)
+          
+          if (logoutTime > oneHourAgo) {
+            console.log('User explicitly logged out recently, skipping session recovery')
+            this.sessionInitialized = true
+            this.clearAuthData()
+            return
+          } else {
+            // Logout was more than an hour ago, clear the flags
+            localStorage.removeItem('userLoggedOut')
+            localStorage.removeItem('logoutTimestamp')
+          }
+        }
+        
         // First check service worker for authentication state
         const isAuthenticatedInSW = await checkServiceWorkerAuth()
         console.log('Service worker authentication check:', isAuthenticatedInSW)
@@ -250,99 +271,96 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
       
       try {
-        console.log('Attempting login with credentials:', {
-          email: credentials.email,
-          password: credentials.password ? '[REDACTED]' : null
-        })
+        // Generate browser fingerprint for security tracking
+        let fingerprint = null;
+        try {
+          fingerprint = await getBrowserFingerprint();
+          console.log('Generated fingerprint for login')
+        } catch (e) {
+          console.warn('Could not generate fingerprint for login:', e.message)
+        }
         
-        // Generate fingerprint for device identification
-        const fingerprint = await getBrowserFingerprint()
-        this.lastKnownFingerprint = fingerprint
+        // Add fingerprint to the credentials if available
+        const requestData = {
+          ...credentials,
+          fingerprint: fingerprint ? fingerprint.hash : undefined
+        }
         
-        // Get CSRF cookie first from Laravel Sanctum
-        await axios.get('/sanctum/csrf-cookie', {
-          withCredentials: true
-        });
+        const response = await apiCall('post', '/api/auth/login', requestData)
+        console.log('Login response received:', response)
         
-        // Login request with fingerprint data for security
-        const response = await axios({
-          method: 'post',
-          url: '/api/auth/login',
-          data: {
-            email: credentials.email,
-            password: credentials.password,
-            remember: true, // Always remember the user for persistent sessions
-            fingerprint: fingerprint.hash,
-            fingerprint_components: {
-              platform: fingerprint.components.platform,
-              browser: fingerprint.components.userAgent,
-              screen: `${fingerprint.components.screenWidth}x${fingerprint.components.screenHeight}`,
-              timezone: fingerprint.components.timezone
-            }
-          },
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          withCredentials: true // Include cookies in the request
-        });
-        
-        console.log('Login response received:', response.data);
-        
-        if (response.data) {
-          if (response.data.status === 'success') {
-            this.setAuthData(response.data)
-            console.log('Auth data set. Current user:', this.user);
-            
-            // Notify service worker about login
-            notifyLoginToServiceWorker();
-            
-            // Integrate with session service
-            try {
-              // Initialize the session service with the current session
-              if (this.sessionId) {
-                const sessionStore = sessionService.getStore()
-                sessionStore.onLogin(this.sessionId)
-              }
-            } catch (e) {
-              console.error('Failed to initialize session service:', e)
-            }
-            
-            return response.data
+        if (response && (response.status === 'success' || response.access_token)) {
+          // Store the fingerprint for future comparisons
+          if (fingerprint) {
+            this.lastKnownFingerprint = fingerprint
+          }
+          
+          // Clear any logout flags since user is logging in again
+          localStorage.removeItem('userLoggedOut')
+          localStorage.removeItem('logoutTimestamp')
+          
+          this.setAuthData(response)
+          
+          // Notify service worker
+          notifyLoginToServiceWorker()
+          
+          // Start session management
+          this.setupServiceWorkerListener()
+          this.setupPersistentSession()
+          this.handleNavigation()
+          
+          // If there's a return URL, use it, otherwise redirect based on role
+          if (this.returnUrl) {
+            console.log('Redirecting to return URL:', this.returnUrl)
+            const url = this.returnUrl
+            this.returnUrl = null
+            window.location.href = url
           } else {
-            console.error('Login response error:', response.data)
-            throw new Error(response.data.message || 'Authentication failed')
+            // Redirect based on user role
+            const userRole = (this.user?.role || '').toLowerCase()
+            
+            if (userRole === 'admin') {
+              console.log('Redirecting admin to admin dashboard')
+              window.location.href = '/admin/dashboard'
+            } else if (userRole === 'client') {
+              console.log('Redirecting client to client dashboard')
+              window.location.href = '/client/dashboard'
+            } else {
+              console.log(`Unknown role "${userRole}" - redirecting to default route`)
+              window.location.href = '/'
+            }
+          }
+          
+          return { 
+            success: true, 
+            user: this.user,
+            redirect_url: this.returnUrl 
           }
         } else {
-          console.error('Login response format error:', response.data)
-          throw new Error('Invalid response format from server')
+          throw new Error(response?.message || 'Login failed')
         }
       } catch (error) {
-        // Handle suspended account specific error
-        if (error.response?.status === 403 && error.response?.data?.message?.includes('suspended')) {
-          this.error = 'Your account has been suspended. Please contact administration for assistance.'
-          console.error('Login failed: Account suspended', {
-            status: error.response.status,
-            message: error.response.data.message
-          })
+        console.error('Login error:', error)
+        
+        // Handle different error types
+        if (error.status === 422 && error.data?.errors) {
+          // Validation errors
+          this.error = 'Validation failed: ' + Object.values(error.data.errors).flat().join(', ')
+        } else if (error.status === 401) {
+          // Unauthorized
+          this.error = error.data?.message || 'Invalid credentials'
+        } else if (error.status === 429) {
+          // Too many requests
+          this.error = 'Too many login attempts. Please try again later.'
         } else {
-          this.error = error.message || 'Login failed'
-          
-          // Enhanced error logging
-          console.error('Login error details:', {
-            status: error.response?.status,
-            message: error.message,
-            responseData: error.response?.data
-          })
+          // Generic error
+          this.error = error.message || 'Login failed. Please try again.'
         }
         
-        if (error.response?.data?.errors) {
-          error.validationErrors = error.response.data.errors;
-          error.isValidationError = true;
+        return { 
+          success: false, 
+          error: this.error 
         }
-        
-        throw error
       } finally {
         this.isLoading = false
       }
@@ -462,21 +480,27 @@ export const useAuthStore = defineStore('auth', {
           })
         }
         
-        // Clean up regardless of server response
-        this.clearAuthData()
+        // Clean up and set logout flags
+        this.clearAuthData(true)
         
         // Notify service worker of logout
         notifyLogoutToServiceWorker()
+        
+        // Force redirect to login page and prevent back navigation
+        window.history.replaceState(null, '', '/login')
         
         return { success: true }
       } catch (error) {
         console.error('Logout error:', error)
         
-        // Still clear data locally even if server logout failed
-        this.clearAuthData()
+        // Still clear data locally and set logout flags even if server logout failed
+        this.clearAuthData(true)
         
         // Notify service worker of logout anyway
         notifyLogoutToServiceWorker()
+        
+        // Force redirect to login page
+        window.history.replaceState(null, '', '/login')
         
         return { success: false, error: error.message }
       } finally {
@@ -640,30 +664,39 @@ export const useAuthStore = defineStore('auth', {
         this.user.role = this.user.role.toLowerCase()
       }
       
-      // Store authentication state in localStorage
+      // Store data in localStorage for persistence
       if (this.token) {
         localStorage.setItem('accessToken', this.token)
         // Set authorization header for subsequent API requests
         axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
       }
       
-      localStorage.setItem('userData', JSON.stringify(this.user))
+      if (this.user) {
+        localStorage.setItem('userData', JSON.stringify(this.user))
+      }
       
-      // Set withCredentials to true to include cookies in requests
-      axios.defaults.withCredentials = true
+      // Clear any logout flags since user is now authenticated
+      localStorage.removeItem('userLoggedOut')
+      localStorage.removeItem('logoutTimestamp')
+      
+      // Initialize abilities
+      this.initializeAbilities()
       
       // Mark session as initialized
       this.sessionInitialized = true
-      this.error = null
       
-      // Setup persistent session handling
-      this.setupPersistentSession()
+      // Set credentials for all requests
+      axios.defaults.withCredentials = true
       
-      // Initialize CASL abilities based on user role
-      this.initializeAbilities()
+      console.log('Auth data set successfully:', {
+        userId: this.user?.id,
+        role: this.user?.role,
+        hasToken: !!this.token,
+        hasSessionId: !!this.sessionId
+      })
     },
 
-    clearAuthData() {
+    clearAuthData(setLogoutFlag = false) {
       // Clear all authentication data
       this.user = null
       this.token = null
@@ -684,6 +717,17 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('userData')
       localStorage.removeItem('sessionId')
+      
+      // Handle logout flags
+      if (setLogoutFlag) {
+        // Set logout flag to prevent session recovery
+        localStorage.setItem('userLoggedOut', 'true')
+        localStorage.setItem('logoutTimestamp', Date.now().toString())
+      } else {
+        // Clear logout flags (for cases like session expiry or other cleanup)
+        localStorage.removeItem('userLoggedOut')
+        localStorage.removeItem('logoutTimestamp')
+      }
       
       // Clear CASL abilities
       ability.update([])
