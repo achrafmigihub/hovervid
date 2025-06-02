@@ -186,7 +186,7 @@ Route::prefix('content')->group(function () {
 });
 
 // Client Domain Management Routes (Protected by hybrid auth - supports both session and token authentication)
-Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\SessionConfig::class])->prefix('client')->group(function () {
+Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\SessionConfig::class, 'nocache'])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard']);
     Route::get('/dashboard-stats', [ClientController::class, 'dashboardStats']);
     
