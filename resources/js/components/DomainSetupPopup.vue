@@ -21,6 +21,7 @@ const domainError = ref('')
 const isLoggingOut = ref(false)
 const periodicCheckInterval = ref(null)
 const isInitialLoadComplete = ref(false)
+const isRefreshing = ref(false)
 
 // User data
 const user = computed(() => authStore.user)
@@ -43,24 +44,46 @@ const isClient = computed(() => {
 })
 
 // Force refresh user data and check domain status
-const refreshUserAndCheckDomain = async () => {
+const refreshUserAndCheckDomain = async (forceRefresh = false) => {
+  if (isRefreshing.value) return // Prevent multiple simultaneous refreshes
+  
+  isRefreshing.value = true
   try {
+    console.log('Refreshing user data...', forceRefresh ? '(forced)' : '(normal)')
+    
+    // If forcing refresh, clear any cached data first
+    if (forceRefresh) {
+      // Clear localStorage cache to force fresh data
+      localStorage.removeItem('userData')
+      authStore.user = null
+    }
+    
     // Fetch fresh user data from the backend
     await authStore.fetchUser()
     
     // Mark initial load as complete after first successful fetch
     isInitialLoadComplete.value = true
     
-    // Wait a bit for the computed property to update
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // Wait a bit longer for the computed property to update when forcing refresh
+    await new Promise(resolve => setTimeout(resolve, forceRefresh ? 500 : 100))
     
     // Check again after refresh
     checkAndShowPopup()
+    
+    console.log('User data refreshed successfully')
   } catch (error) {
     console.error('Error refreshing user data:', error)
     // Even on error, mark as complete to prevent indefinite loading
     isInitialLoadComplete.value = true
+  } finally {
+    isRefreshing.value = false
   }
+}
+
+// Manual refresh function for the refresh button
+const manualRefresh = async () => {
+  console.log('Manual refresh triggered')
+  await refreshUserAndCheckDomain(true)
 }
 
 // Check if popup should be shown
@@ -120,13 +143,13 @@ const setupPeriodicCheck = () => {
     clearInterval(periodicCheckInterval.value)
   }
   
-  // Set up new interval to check every 30 seconds when popup is visible
+  // Set up new interval to check every 10 seconds when popup is visible (reduced from 30)
   periodicCheckInterval.value = setInterval(async () => {
     if (showDomainPopup.value) {
       console.log('Periodic domain check triggered')
       await refreshUserAndCheckDomain()
     }
-  }, 30000) // 30 seconds
+  }, 10000) // 10 seconds for faster detection
 }
 
 // Clear periodic check
@@ -218,8 +241,11 @@ const submitDomain = async () => {
     console.log('API call successful:', data)
 
     if (data.success) {
-      // Update user data with better refresh logic
-      await refreshUserAndCheckDomain()
+      // Force a complete refresh with cache clearing
+      await refreshUserAndCheckDomain(true)
+      
+      // Wait a bit more to ensure data propagates
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
       // Clear form data
       showDomainPopup.value = false
@@ -227,6 +253,11 @@ const submitDomain = async () => {
       
       // Show success message
       console.log('Domain set successfully:', data.message)
+      
+      // Force one more check after a delay to be absolutely sure
+      setTimeout(async () => {
+        await refreshUserAndCheckDomain(true)
+      }, 2000)
     } else {
       domainError.value = data.message || 'Failed to set domain'
     }
@@ -303,6 +334,20 @@ onUnmounted(() => {
           <VIcon icon="bx-info-circle" size="16" class="me-1" />
           If you prefer not to set a domain right now, you can logout using the button above.
         </p>
+        
+        <!-- Refresh button for manual data refresh -->
+        <div class="d-flex justify-end mb-3">
+          <VBtn
+            size="small"
+            variant="outlined"
+            color="primary"
+            :loading="isRefreshing"
+            @click="manualRefresh"
+          >
+            <VIcon icon="bx-refresh" size="16" class="me-1" />
+            Refresh
+          </VBtn>
+        </div>
 
         <VTextField
           v-model="domainInput"
