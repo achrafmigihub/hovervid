@@ -20,6 +20,7 @@ const isSubmittingDomain = ref(false)
 const domainError = ref('')
 const isLoggingOut = ref(false)
 const periodicCheckInterval = ref(null)
+const isInitialLoadComplete = ref(false)
 
 // User data
 const user = computed(() => authStore.user)
@@ -47,6 +48,9 @@ const refreshUserAndCheckDomain = async () => {
     // Fetch fresh user data from the backend
     await authStore.fetchUser()
     
+    // Mark initial load as complete after first successful fetch
+    isInitialLoadComplete.value = true
+    
     // Wait a bit for the computed property to update
     await new Promise(resolve => setTimeout(resolve, 100))
     
@@ -54,11 +58,25 @@ const refreshUserAndCheckDomain = async () => {
     checkAndShowPopup()
   } catch (error) {
     console.error('Error refreshing user data:', error)
+    // Even on error, mark as complete to prevent indefinite loading
+    isInitialLoadComplete.value = true
   }
 }
 
 // Check if popup should be shown
 const checkAndShowPopup = () => {
+  // Don't show popup until initial data load is complete
+  if (!isInitialLoadComplete.value) {
+    console.log('Domain popup check: Initial load not complete, skipping check')
+    return
+  }
+  
+  // Don't show popup if auth store is still initializing
+  if (!authStore.sessionInitialized) {
+    console.log('Domain popup check: Auth store not initialized, skipping check')
+    return
+  }
+  
   const domainCheck = hasDomain.value
   const clientCheck = isClient.value
   const authCheck = authStore.isAuthenticated
@@ -78,6 +96,8 @@ const checkAndShowPopup = () => {
     hasDomain: domainCheck,
     isClient: clientCheck,
     isAuthenticated: authCheck,
+    isInitialLoadComplete: isInitialLoadComplete.value,
+    sessionInitialized: authStore.sessionInitialized,
     shouldShowPopup: clientCheck && !domainCheck && authCheck
   })
   
@@ -89,7 +109,7 @@ const checkAndShowPopup = () => {
 }
 
 // Watch for user changes and show popup if needed
-watch([user, isClient], () => {
+watch([user, isClient, isInitialLoadComplete], () => {
   checkAndShowPopup()
 }, { immediate: true })
 
@@ -128,6 +148,9 @@ watch(showDomainPopup, (newValue) => {
 
 // Initialize on mount
 onMounted(async () => {
+  // Add a small delay to ensure auth store and router are fully initialized
+  await new Promise(resolve => setTimeout(resolve, 500))
+  
   // Force refresh user data on mount to ensure we have the latest domain info
   await refreshUserAndCheckDomain()
 })

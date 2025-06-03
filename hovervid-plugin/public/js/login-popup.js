@@ -14,55 +14,98 @@
     };
     
     /**
-     * Create and inject popup HTML
+     * Create and inject popup HTML based on error type
      */
-    function createPopupHTML() {
+    function createPopupHTML(isDisabled = false) {
         const currentDomain = window.location.hostname;
         
-        return `
-            <div id="slvp-popup-overlay" class="slvp-popup-overlay">
-                <div class="slvp-popup">
-                    <div class="slvp-popup-header">
-                        <button class="slvp-popup-close" id="slvp-popup-close" aria-label="Close popup">×</button>
-                        <h2 class="slvp-popup-title">🔐 Domain Not Registered</h2>
-                        <p class="slvp-popup-subtitle">Authentication Required</p>
-                    </div>
-                    
-                    <div class="slvp-popup-body">
-                        <div class="slvp-popup-icon">🚫</div>
-                        
-                        <div class="slvp-popup-message">
-                            <strong>Access Denied:</strong> Your domain is not registered with HoverVid.<br>
-                            To use this plugin, you need to have an active account and register your domain.
+        if (isDisabled) {
+            // Domain exists but is disabled
+            return `
+                <div id="slvp-popup-overlay" class="slvp-popup-overlay">
+                    <div class="slvp-popup">
+                        <div class="slvp-popup-header">
+                            <button class="slvp-popup-close" id="slvp-popup-close" aria-label="Close popup">×</button>
+                            <h2 class="slvp-popup-title">⚠️ Service Disabled</h2>
+                            <p class="slvp-popup-subtitle">Plugin Inactive</p>
                         </div>
                         
-                        <div class="slvp-popup-domain">
-                            <strong>Current Domain:</strong> ${currentDomain}
+                        <div class="slvp-popup-body">
+                            <div class="slvp-popup-icon">🚫</div>
+                            
+                            <div class="slvp-popup-message">
+                                <strong>Service Disabled:</strong> Your HoverVid plugin is currently inactive.<br>
+                                Your subscription may have expired or your account may be suspended.
+                            </div>
+                            
+                            <div class="slvp-popup-domain">
+                                <strong>Current Domain:</strong> ${currentDomain}
+                            </div>
+                            
+                            <div class="slvp-popup-buttons">
+                                <a href="${POPUP_CONFIG.apiBaseUrl}/support" class="slvp-popup-button slvp-primary" id="slvp-support-btn">
+                                    📞 Contact Support
+                                </a>
+                                <a href="${POPUP_CONFIG.loginUrl}" class="slvp-popup-button slvp-secondary" id="slvp-dashboard-btn">
+                                    🏠 Go to Dashboard
+                                </a>
+                            </div>
                         </div>
                         
-                        <div class="slvp-popup-buttons">
-                            <a href="${POPUP_CONFIG.loginUrl}" class="slvp-popup-button slvp-primary" id="slvp-login-btn">
-                                🔑 Login to Dashboard
-                            </a>
-                            <a href="${POPUP_CONFIG.signupUrl}" class="slvp-popup-button slvp-secondary" id="slvp-signup-btn">
-                                📝 Create Account
-                            </a>
+                        <div class="slvp-popup-footer">
+                            Need help? <a href="${POPUP_CONFIG.apiBaseUrl}/support" target="_blank">Contact Support</a>
                         </div>
-                    </div>
-                    
-                    <div class="slvp-popup-footer">
-                        Need help? <a href="${POPUP_CONFIG.apiBaseUrl}/support" target="_blank">Contact Support</a>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            // Domain not found - original registration popup
+            return `
+                <div id="slvp-popup-overlay" class="slvp-popup-overlay">
+                    <div class="slvp-popup">
+                        <div class="slvp-popup-header">
+                            <button class="slvp-popup-close" id="slvp-popup-close" aria-label="Close popup">×</button>
+                            <h2 class="slvp-popup-title">🔐 Domain Not Registered</h2>
+                            <p class="slvp-popup-subtitle">Authentication Required</p>
+                        </div>
+                        
+                        <div class="slvp-popup-body">
+                            <div class="slvp-popup-icon">🚫</div>
+                            
+                            <div class="slvp-popup-message">
+                                <strong>Access Denied:</strong> Your domain is not registered with HoverVid.<br>
+                                To use this plugin, you need to have an active account and register your domain.
+                            </div>
+                            
+                            <div class="slvp-popup-domain">
+                                <strong>Current Domain:</strong> ${currentDomain}
+                            </div>
+                            
+                            <div class="slvp-popup-buttons">
+                                <a href="${POPUP_CONFIG.loginUrl}" class="slvp-popup-button slvp-primary" id="slvp-login-btn">
+                                    🔑 Login to Dashboard
+                                </a>
+                                <a href="${POPUP_CONFIG.signupUrl}" class="slvp-popup-button slvp-secondary" id="slvp-signup-btn">
+                                    📝 Create Account
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="slvp-popup-footer">
+                            Need help? <a href="${POPUP_CONFIG.apiBaseUrl}/support" target="_blank">Contact Support</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
     }
     
     /**
      * Show the login popup
      */
-    function showLoginPopup() {
-        console.log('🔐 Showing login popup for unregistered domain');
+    function showLoginPopup(isDisabled = false) {
+        const popupType = isDisabled ? 'disabled' : 'not_registered';
+        console.log(`🔐 Showing ${popupType} popup for domain`);
         
         // Remove existing popup if any
         const existingPopup = document.getElementById('slvp-popup-overlay');
@@ -71,7 +114,7 @@
         }
         
         // Create and inject popup
-        const popupHTML = createPopupHTML();
+        const popupHTML = createPopupHTML(isDisabled);
         document.body.insertAdjacentHTML('beforeend', popupHTML);
         
         // Show popup with animation
@@ -81,10 +124,10 @@
         });
         
         // Add event listeners
-        setupPopupEventListeners();
+        setupPopupEventListeners(isDisabled);
         
         // Log analytics
-        logPopupEvent('shown');
+        logPopupEvent('shown', popupType);
     }
     
     /**
@@ -105,7 +148,7 @@
     /**
      * Setup event listeners for popup interactions
      */
-    function setupPopupEventListeners() {
+    function setupPopupEventListeners(isDisabled) {
         // Close button
         const closeBtn = document.getElementById('slvp-popup-close');
         if (closeBtn) {
@@ -122,32 +165,62 @@
             });
         }
         
-        // Login button tracking
-        const loginBtn = document.getElementById('slvp-login-btn');
-        if (loginBtn) {
-            loginBtn.addEventListener('click', function() {
-                logPopupEvent('login_clicked');
-                // Add current domain as URL parameter for auto-registration
-                const currentDomain = window.location.hostname;
-                const url = new URL(this.href);
-                url.searchParams.set('domain', currentDomain);
-                url.searchParams.set('source', 'plugin');
-                this.href = url.toString();
-            });
-        }
-        
-        // Signup button tracking
-        const signupBtn = document.getElementById('slvp-signup-btn');
-        if (signupBtn) {
-            signupBtn.addEventListener('click', function() {
-                logPopupEvent('signup_clicked');
-                // Add current domain as URL parameter for auto-registration
-                const currentDomain = window.location.hostname;
-                const url = new URL(this.href);
-                url.searchParams.set('domain', currentDomain);
-                url.searchParams.set('source', 'plugin');
-                this.href = url.toString();
-            });
+        if (isDisabled) {
+            // Support button tracking
+            const supportBtn = document.getElementById('slvp-support-btn');
+            if (supportBtn) {
+                supportBtn.addEventListener('click', function() {
+                    logPopupEvent('support_clicked', 'disabled');
+                    // Add current domain as URL parameter
+                    const currentDomain = window.location.hostname;
+                    const url = new URL(this.href);
+                    url.searchParams.set('domain', currentDomain);
+                    url.searchParams.set('source', 'plugin');
+                    this.href = url.toString();
+                });
+            }
+            
+            // Dashboard button tracking
+            const dashboardBtn = document.getElementById('slvp-dashboard-btn');
+            if (dashboardBtn) {
+                dashboardBtn.addEventListener('click', function() {
+                    logPopupEvent('dashboard_clicked', 'disabled');
+                    // Add current domain as URL parameter
+                    const currentDomain = window.location.hostname;
+                    const url = new URL(this.href);
+                    url.searchParams.set('domain', currentDomain);
+                    url.searchParams.set('source', 'plugin');
+                    this.href = url.toString();
+                });
+            }
+        } else {
+            // Login button tracking
+            const loginBtn = document.getElementById('slvp-login-btn');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', function() {
+                    logPopupEvent('login_clicked', 'not_registered');
+                    // Add current domain as URL parameter for auto-registration
+                    const currentDomain = window.location.hostname;
+                    const url = new URL(this.href);
+                    url.searchParams.set('domain', currentDomain);
+                    url.searchParams.set('source', 'plugin');
+                    this.href = url.toString();
+                });
+            }
+            
+            // Signup button tracking
+            const signupBtn = document.getElementById('slvp-signup-btn');
+            if (signupBtn) {
+                signupBtn.addEventListener('click', function() {
+                    logPopupEvent('signup_clicked', 'not_registered');
+                    // Add current domain as URL parameter for auto-registration
+                    const currentDomain = window.location.hostname;
+                    const url = new URL(this.href);
+                    url.searchParams.set('domain', currentDomain);
+                    url.searchParams.set('source', 'plugin');
+                    this.href = url.toString();
+                });
+            }
         }
         
         // ESC key to close
@@ -161,15 +234,15 @@
     /**
      * Log popup events for analytics
      */
-    function logPopupEvent(action) {
+    function logPopupEvent(action, domain) {
         if (window.gtag) {
             window.gtag('event', 'hovervid_popup', {
                 'action': action,
-                'domain': window.location.hostname
+                'domain': domain || window.location.hostname
             });
         }
         
-        console.log(`📊 HoverVid Popup Event: ${action} for domain ${window.location.hostname}`);
+        console.log(`📊 HoverVid Popup Event: ${action} for domain ${domain || window.location.hostname}`);
     }
     
     /**
@@ -186,19 +259,32 @@
         
         console.log('🔍 Checking domain status:', domainStatus);
         
-        // Show popup if domain is not verified
-        if (!domainStatus || !domainStatus.isActive || !domainStatus.domainExists) {
-            console.log('❌ Domain not verified - showing login popup');
+        // Show popup ONLY if domain doesn't exist in the database
+        // Don't show popup when domain exists but is_verified is false
+        if (!domainStatus || !domainStatus.domainExists) {
+            console.log('❌ Domain not found in database - showing registration popup');
             
             // Delay popup slightly to ensure page is ready
             setTimeout(() => {
-                showLoginPopup();
+                showLoginPopup(false); // Domain not registered popup
             }, 1000);
             
             return false;
         }
         
-        console.log('✅ Domain verified - no popup needed');
+        // Check if domain exists but is not active (disabled)
+        if (domainStatus.domainExists && !domainStatus.isActive) {
+            console.log('⚠️ Domain exists but is disabled - showing support popup');
+            
+            // Delay popup slightly to ensure page is ready
+            setTimeout(() => {
+                showLoginPopup(true); // Domain disabled popup
+            }, 1000);
+            
+            return false;
+        }
+        
+        console.log('✅ Domain exists and is active - no popup needed');
         return true;
     }
     
@@ -221,7 +307,9 @@
         show: showLoginPopup,
         hide: hideLoginPopup,
         checkStatus: checkDomainStatus,
-        config: POPUP_CONFIG
+        config: POPUP_CONFIG,
+        showDisabledPopup: () => showLoginPopup(true),
+        showRegistrationPopup: () => showLoginPopup(false)
     };
     
     // Auto-initialize
