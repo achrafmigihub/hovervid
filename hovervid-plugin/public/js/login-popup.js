@@ -43,7 +43,7 @@
                             </div>
                             
                             <div class="slvp-popup-buttons">
-                                <a href="${POPUP_CONFIG.apiBaseUrl}/support" class="slvp-popup-button slvp-primary" id="slvp-support-btn">
+                                <a href="${POPUP_CONFIG.apiBaseUrl}/support" class="slvp-popup-button slvp-primary" id="slvp-support-btn" style="background: #10b981; border-color: #10b981;">
                                     📞 Contact Support
                                 </a>
                                 <a href="${POPUP_CONFIG.loginUrl}" class="slvp-popup-button slvp-secondary" id="slvp-dashboard-btn">
@@ -82,7 +82,7 @@
                             </div>
                             
                             <div class="slvp-popup-buttons">
-                                <a href="${POPUP_CONFIG.loginUrl}" class="slvp-popup-button slvp-primary" id="slvp-login-btn">
+                                <a href="${POPUP_CONFIG.loginUrl}" class="slvp-popup-button slvp-primary" id="slvp-login-btn" style="background: #10b981; border-color: #10b981;">
                                     🔑 Login to Dashboard
                                 </a>
                                 <a href="${POPUP_CONFIG.signupUrl}" class="slvp-popup-button slvp-secondary" id="slvp-signup-btn">

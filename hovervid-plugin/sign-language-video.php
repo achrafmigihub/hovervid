@@ -132,7 +132,7 @@ function slvp_activation_error_notice() {
                         <p style="margin: 0 0 15px 0;"><strong><?php echo esc_html($message); ?></strong></p>
                         <p style="margin: 0 0 15px 0;">Please contact our support team to resolve this issue and reactivate your plugin.</p>
                         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <a href="#" class="button button-primary" id="hovervid-support-btn" style="background: #f39c12; border: none; color: white; text-decoration: none;">
+                            <a href="#" class="button button-primary" id="hovervid-support-btn" style="background: #10b981; border: none; color: white; text-decoration: none;">
                                 📞 Contact Support
                             </a>
                             <a href="#" class="button button-secondary" id="hovervid-dashboard-btn">
@@ -198,7 +198,7 @@ function slvp_activation_error_notice() {
                         <p style="margin: 0 0 15px 0;"><strong><?php echo esc_html($message); ?></strong></p>
                         <p style="margin: 0 0 15px 0;">To use this plugin, you need to have an active account and register your domain with HoverVid.</p>
                         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <a href="#" class="button button-primary" id="hovervid-login-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; text-decoration: none;">
+                            <a href="#" class="button button-primary" id="hovervid-login-btn" style="background: #10b981; border: none; color: white; text-decoration: none;">
                                 🔑 Login to Dashboard
                             </a>
                             <a href="#" class="button button-secondary" id="hovervid-signup-btn">
