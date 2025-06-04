@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class DomainApiController extends Controller
 {
@@ -223,11 +224,26 @@ class DomainApiController extends Controller
             // Begin transaction
             DB::beginTransaction();
             
-            // Check if domain exists
-            $domain = DB::selectOne("SELECT domain FROM domains WHERE id = ?", [$id]);
+            // Check if domain exists and get its user_id
+            $domain = DB::selectOne("SELECT id, domain, user_id FROM domains WHERE id = ?", [$id]);
             
             if (!$domain) {
                 throw new Exception('Domain not found');
+            }
+            
+            // Clear the domain_id from the user record first
+            if ($domain->user_id) {
+                DB::update("UPDATE users SET domain_id = NULL WHERE id = ?", [$domain->user_id]);
+                
+                // Invalidate user's dashboard cache
+                Cache::forget("user_dashboard_{$domain->user_id}");
+                Cache::forget("user_auth_data_{$domain->user_id}");
+                
+                Log::info('Cleared domain_id from user during domain deletion', [
+                    'domain_id' => $id,
+                    'user_id' => $domain->user_id,
+                    'domain_name' => $domain->domain
+                ]);
             }
             
             // Delete domain
@@ -239,6 +255,12 @@ class DomainApiController extends Controller
             
             // Commit transaction
             DB::commit();
+            
+            Log::info('Domain deleted successfully', [
+                'domain_id' => $id,
+                'domain_name' => $domain->domain,
+                'user_id' => $domain->user_id
+            ]);
             
             return response()->json([
                 'success' => true,

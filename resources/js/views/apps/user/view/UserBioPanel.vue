@@ -245,14 +245,67 @@ const toggleUserSuspension = async () => {
     
     console.log(`${action}ing user:`, props.userData.id)
     
-    // Update the user suspension status using the direct endpoint
-    const response = await axios.post(`/direct-suspend-user.php?id=${props.userData.id}&action=${action}`, {}, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    // Try multiple endpoints in order of preference
+    let response
+    let endpoint
+    
+    try {
+      // First attempt: Use general Laravel API endpoints (less restrictive middleware)
+      endpoint = action === 'suspend' 
+        ? `/api/users/${props.userData.id}/suspend`
+        : `/api/users/${props.userData.id}/unsuspend`
+        
+      response = await axios.post(endpoint, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        withCredentials: true // Use session cookies for auth
+      })
+      
+      console.log('General API endpoint succeeded')
+    } catch (apiError) {
+      console.log('General API failed, trying admin endpoint...', apiError.message)
+      
+      try {
+        // Second attempt: Use admin Laravel API endpoints
+        endpoint = action === 'suspend' 
+          ? `/api/admin/users/${props.userData.id}/suspend`
+          : `/api/admin/users/${props.userData.id}/unsuspend`
+          
+        response = await axios.post(endpoint, {}, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          withCredentials: true // Use session cookies for auth
+        })
+        
+        console.log('Admin API endpoint succeeded')
+      } catch (adminApiError) {
+        console.log('Admin API also failed, trying direct script...', adminApiError.message)
+        
+        // Third attempt: Use direct PHP script with GET request
+        endpoint = `/direct-suspend-user.php?id=${props.userData.id}&action=${action}`
+        
+        // Create a new axios instance without the /api prefix for direct scripts
+        const directAxios = axios.create({
+          baseURL: window.location.origin,
+          withCredentials: true
+        })
+        
+        response = await directAxios.get(endpoint, {
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        
+        console.log('Direct script succeeded')
       }
-    })
+    }
     
     console.log(`${action} response:`, response.data)
     

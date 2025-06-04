@@ -90,8 +90,11 @@ class DomainRequest extends FormRequest
         // Set default values for new domains
         if ($this->isMethod('POST')) {
             $validated['platform'] = $validated['platform'] ?? 'wordpress';
-            $validated['status'] = 'inactive';
-            $validated['is_active'] = false;
+            
+            // For popup domain registration, make domain active by default
+            // For admin-created domains, they might want to control this separately
+            $validated['status'] = 'active';
+            $validated['is_active'] = true;
             $validated['is_verified'] = false;
             
             // Auto-assign user_id if not provided (for client self-registration)

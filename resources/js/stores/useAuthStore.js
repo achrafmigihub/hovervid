@@ -29,6 +29,7 @@ export const useAuthStore = defineStore('auth', {
     isAuthenticated: state => !!state.user,
     isAdmin: state => state.user?.role === 'admin',
     isClient: state => state.user?.role === 'client',
+    isSuspended: state => state.user?.is_suspended || state.user?.status === 'suspended',
   },
 
   actions: {
@@ -645,7 +646,7 @@ export const useAuthStore = defineStore('auth', {
           config.headers['Authorization'] = `Bearer ${this.token}`
         }
         
-        const { data } = await axios.get('/api/auth/user', config)
+        const { data } = await axios.get('/auth/user', config)
         
         console.log('User data response:', data)
         
@@ -924,7 +925,7 @@ export const useAuthStore = defineStore('auth', {
         // NOTE: The browser will show a 401 network error in the console for guest users.
         // This is normal browser behavior and cannot be suppressed. Our error handling
         // below properly treats 401 responses as expected behavior for guests.
-        const { data } = await axios.get('/api/auth/session-user', { 
+        const { data } = await axios.get('/auth/session-user', { 
           withCredentials: true,
           params: {
             fingerprint: fingerprint ? fingerprint.hash : undefined,
@@ -1107,6 +1108,41 @@ export const useAuthStore = defineStore('auth', {
         } catch (e) {
           console.error('Failed to add security alert for suspicious activity:', e)
         }
+      }
+    },
+
+    // Check if user is suspended and handle accordingly
+    async checkSuspensionStatus() {
+      if (!this.user) return false
+      
+      try {
+        // Make API call to check current suspension status
+        const response = await axios.get('/check-suspended', {
+          headers: this.token ? { 'Authorization': `Bearer ${this.token}` } : {},
+          withCredentials: true
+        })
+        
+        if (response.data && response.data.is_suspended) {
+          // Update user data with current suspension status
+          this.user.is_suspended = response.data.is_suspended
+          this.user.status = response.data.status || 'suspended'
+          
+          // Update localStorage
+          localStorage.setItem('userData', JSON.stringify(this.user))
+          
+          console.log('User suspension status updated:', {
+            is_suspended: this.user.is_suspended,
+            status: this.user.status
+          })
+          
+          return true
+        }
+        
+        return false
+      } catch (error) {
+        console.error('Error checking suspension status:', error)
+        // If there's an error, check local data
+        return this.user.is_suspended || this.user.status === 'suspended'
       }
     },
   }

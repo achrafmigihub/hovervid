@@ -127,6 +127,66 @@ class AuthController extends Controller
             /** @var \App\Models\User $user */
             $user = Auth::user();
             
+            // Update session record in database with user information
+            if ($sessionId) {
+                try {
+                    // Find the existing session record (created by SessionConfig middleware)
+                    $existingSession = Session::find($sessionId);
+                    
+                    if ($existingSession) {
+                        // Update existing session record with user information
+                        $existingSession->update([
+                            'user_id' => $user->id,
+                            'ip_address' => $request->ip(),
+                            'user_agent' => $request->userAgent(),
+                            'last_activity' => time(),
+                            'is_active' => true,
+                            'expires_at' => now()->addMinutes((int)config('session.lifetime', 120)),
+                            'fingerprint' => $request->input('fingerprint'),
+                            'device_info' => [
+                                'browser' => $request->header('User-Agent'),
+                                'platform' => $request->header('Sec-Ch-Ua-Platform'),
+                            ],
+                        ]);
+                        
+                        Log::info('Session record updated with user information during login', [
+                            'user_id' => $user->id,
+                            'session_id' => $sessionId
+                        ]);
+                    } else {
+                        // Create new session record if it doesn't exist
+                        Session::create([
+                            'id' => $sessionId,
+                            'user_id' => $user->id,
+                            'ip_address' => $request->ip(),
+                            'user_agent' => $request->userAgent(),
+                            'payload' => '',
+                            'last_activity' => time(),
+                            'is_active' => true,
+                            'expires_at' => now()->addMinutes((int)config('session.lifetime', 120)),
+                            'fingerprint' => $request->input('fingerprint'),
+                            'device_info' => [
+                                'browser' => $request->header('User-Agent'),
+                                'platform' => $request->header('Sec-Ch-Ua-Platform'),
+                            ],
+                        ]);
+                        
+                        Log::info('Session record created during login', [
+                            'user_id' => $user->id,
+                            'session_id' => $sessionId
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Failed to update/create session record during login', [
+                        'error' => $e->getMessage(),
+                        'user_id' => $user->id,
+                        'session_id' => $sessionId,
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    // Continue even if session record update/creation fails
+                }
+            }
+            
             // Create an access token
             $token = null;
             try {
@@ -247,6 +307,66 @@ class AuthController extends Controller
                 // Continue registration process even if session handling fails
             }
             
+            // Update session record in database with user information
+            if ($sessionId) {
+                try {
+                    // Find the existing session record (created by SessionConfig middleware)
+                    $existingSession = Session::find($sessionId);
+                    
+                    if ($existingSession) {
+                        // Update existing session record with user information
+                        $existingSession->update([
+                            'user_id' => $user->id,
+                            'ip_address' => $request->ip(),
+                            'user_agent' => $request->userAgent(),
+                            'last_activity' => time(),
+                            'is_active' => true,
+                            'expires_at' => now()->addMinutes((int)config('session.lifetime', 120)),
+                            'fingerprint' => $request->input('fingerprint'),
+                            'device_info' => [
+                                'browser' => $request->header('User-Agent'),
+                                'platform' => $request->header('Sec-Ch-Ua-Platform'),
+                            ],
+                        ]);
+                        
+                        Log::info('Session record updated with user information during registration', [
+                            'user_id' => $user->id,
+                            'session_id' => $sessionId
+                        ]);
+                    } else {
+                        // Create new session record if it doesn't exist
+                        Session::create([
+                            'id' => $sessionId,
+                            'user_id' => $user->id,
+                            'ip_address' => $request->ip(),
+                            'user_agent' => $request->userAgent(),
+                            'payload' => '',
+                            'last_activity' => time(),
+                            'is_active' => true,
+                            'expires_at' => now()->addMinutes((int)config('session.lifetime', 120)),
+                            'fingerprint' => $request->input('fingerprint'),
+                            'device_info' => [
+                                'browser' => $request->header('User-Agent'),
+                                'platform' => $request->header('Sec-Ch-Ua-Platform'),
+                            ],
+                        ]);
+                        
+                        Log::info('Session record created during registration', [
+                            'user_id' => $user->id,
+                            'session_id' => $sessionId
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Failed to update/create session record during registration', [
+                        'error' => $e->getMessage(),
+                        'user_id' => $user->id,
+                        'session_id' => $sessionId,
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    // Continue even if session record update/creation fails
+                }
+            }
+            
             // Create an access token
             $token = null;
             try {
@@ -301,8 +421,31 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         try {
-            // Get the user before logout
+            // Get the user and session ID before logout
             $user = $request->user();
+            $sessionId = $request->session()->getId();
+            
+            // Deactivate the current session record in database
+            if ($sessionId) {
+                try {
+                    Session::where('id', $sessionId)
+                        ->update([
+                            'is_active' => false,
+                            'expires_at' => now()
+                        ]);
+                    
+                    Log::info('Session record deactivated during logout', [
+                        'user_id' => $user ? $user->id : null,
+                        'session_id' => $sessionId
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to deactivate session record during logout', [
+                        'error' => $e->getMessage(),
+                        'session_id' => $sessionId,
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                }
+            }
             
             // Revoke the token that was used to authenticate the current request
             if ($user) {
@@ -310,7 +453,7 @@ class AuthController extends Controller
                 
                 // Set user status to inactive if they have no active sessions
                 $hasOtherActiveSessions = \App\Models\Session::where('user_id', $user->id)
-                    ->where('id', '<>', $request->session()->getId())
+                    ->where('id', '<>', $sessionId)
                     ->where('is_active', true)
                     ->where('expires_at', '>', now())
                     ->exists();

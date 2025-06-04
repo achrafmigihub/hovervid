@@ -365,13 +365,24 @@ function handleDeleteDomain($id) {
         // Begin transaction
         $pdo->beginTransaction();
         
-        // Check if domain exists
-        $stmt = $pdo->prepare("SELECT domain FROM domains WHERE id = :id");
+        // Check if domain exists and get its user_id
+        $stmt = $pdo->prepare("SELECT id, domain, user_id FROM domains WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
         
         if ($stmt->rowCount() === 0) {
             throw new Exception('Domain not found');
+        }
+        
+        $domain = $stmt->fetch(PDO::FETCH_OBJ);
+        
+        // Clear the domain_id from the user record first
+        if ($domain->user_id) {
+            $stmt = $pdo->prepare("UPDATE users SET domain_id = NULL WHERE id = :user_id");
+            $stmt->bindParam(':user_id', $domain->user_id, PDO::PARAM_INT);
+            $stmt->execute();
+            
+            error_log("Cleared domain_id from user during domain deletion - Domain ID: {$id}, User ID: {$domain->user_id}, Domain: {$domain->domain}");
         }
         
         // Delete domain
@@ -381,6 +392,8 @@ function handleDeleteDomain($id) {
         
         // Commit transaction
         $pdo->commit();
+        
+        error_log("Domain deleted successfully - Domain ID: {$id}, Domain: {$domain->domain}, User ID: {$domain->user_id}");
         
         // Return success response
         jsonResponse([

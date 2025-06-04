@@ -1,16 +1,10 @@
 <script setup>
 import { useAuthStore } from '@/stores/useAuthStore'
 import axios from 'axios'
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-// Get the properly configured API instance
-const api = inject('api')
-
-// Get auth store to access logged-in user
 const authStore = useAuthStore()
-
-// Get router for navigation
 const router = useRouter()
 
 // Component state
@@ -19,157 +13,223 @@ const domainInput = ref('')
 const isSubmittingDomain = ref(false)
 const domainError = ref('')
 const isLoggingOut = ref(false)
-const periodicCheckInterval = ref(null)
-const isInitialLoadComplete = ref(false)
+const checkInterval = ref(null)
+const lastCheckTime = ref(null)
+const checkCount = ref(0)
+const userHasDomain = ref(false) // Track if user currently has domain
+
+// Create custom event for domain status changes
+const DOMAIN_STATUS_EVENT = 'domain-status-changed'
 
 // User data
 const user = computed(() => authStore.user)
-
-// Check if user has a domain
-const hasDomain = computed(() => {
-  const userValue = user.value
-  if (!userValue) return false
-  
-  // Check for domain_id or domain relationship object
-  const hasDomainId = !!(userValue.domain_id)
-  const hasDomainObject = !!(userValue.domain && userValue.domain.id)
-  
-  // Domain exists if either condition is true
-  const domainExists = hasDomainId || hasDomainObject
-  
-  // Log for debugging
-  if (domainExists) {
-    console.log('Domain found for user:', {
-      domain_id: userValue.domain_id,
-      domain_object: userValue.domain,
-      user_id: userValue.id
-    })
-  }
-  
-  return domainExists
-})
 
 // Check if user is a client
 const isClient = computed(() => {
   return user.value?.role?.toLowerCase() === 'client'
 })
 
-// Force refresh user data and check domain status
-const refreshUserAndCheckDomain = async () => {
+// Watch for changes in auth store user data
+watch(() => authStore.user, (newUserData, oldUserData) => {
+  if (newUserData && oldUserData && isClient.value) {
+    // Check if user went from needing domain to having domain
+    const hadDomain = oldUserData.domain_id || (oldUserData.domain && oldUserData.domain.id)
+    const hasDomain = newUserData.domain_id || (newUserData.domain && newUserData.domain.id)
+    
+    if (!hadDomain && hasDomain) {
+      // User just got a domain - hide popup
+      showDomainPopup.value = false
+      
+      // Dispatch event that can be listened for elsewhere
+      window.dispatchEvent(new CustomEvent(DOMAIN_STATUS_EVENT, { 
+        detail: { user: newUserData, event: 'domain_added' }
+      }))
+    } else if (hadDomain && !hasDomain) {
+      // User lost their domain - show popup
+      showDomainPopup.value = true
+      
+      // Dispatch event that can be listened for elsewhere
+      window.dispatchEvent(new CustomEvent(DOMAIN_STATUS_EVENT, { 
+        detail: { user: newUserData, event: 'domain_removed' }
+      }))
+    }
+  }
+}, { deep: true })
+
+// Force refresh user data from auth store
+const refreshUserData = async () => {
   try {
-    console.log('Refreshing user data...')
-    
-    // Fetch fresh user data from the backend without clearing existing data
     await authStore.fetchUser()
-    
-    // Mark initial load as complete after first successful fetch
-    isInitialLoadComplete.value = true
-    
-    // Wait a bit for the computed property to update
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    // Check again after refresh
-    checkAndShowPopup()
-    
-    console.log('User data refreshed successfully')
+    return true
   } catch (error) {
     console.error('Error refreshing user data:', error)
-    // Even on error, mark as complete to prevent indefinite loading
-    isInitialLoadComplete.value = true
+    return false
   }
 }
 
-// Check if popup should be shown
-const checkAndShowPopup = () => {
-  // Don't show popup until initial data load is complete
-  if (!isInitialLoadComplete.value) {
-    console.log('Domain popup check: Initial load not complete, skipping check')
-    return
-  }
-  
-  // Don't show popup if auth store is still initializing
-  if (!authStore.sessionInitialized) {
-    console.log('Domain popup check: Auth store not initialized, skipping check')
-    return
-  }
-  
-  const domainCheck = hasDomain.value
-  const clientCheck = isClient.value
-  const authCheck = authStore.isAuthenticated
-  
-  // Debug logging to help track domain status
-  console.log('Domain popup check:', {
-    user: user.value ? {
-      id: user.value.id,
-      email: user.value.email,
-      role: user.value.role,
-      domain_id: user.value.domain_id,
-      domain: user.value.domain ? {
-        id: user.value.domain.id,
-        domain: user.value.domain.domain
-      } : null
-    } : null,
-    hasDomain: domainCheck,
-    isClient: clientCheck,
-    isAuthenticated: authCheck,
-    isInitialLoadComplete: isInitialLoadComplete.value,
-    sessionInitialized: authStore.sessionInitialized,
-    shouldShowPopup: clientCheck && !domainCheck && authCheck
-  })
-  
-  if (isClient.value && !hasDomain.value && authStore.isAuthenticated) {
-    showDomainPopup.value = true
-  } else {
-    showDomainPopup.value = false
-  }
-}
-
-// Watch for user changes and show popup if needed
-watch([user, isClient, isInitialLoadComplete], () => {
-  checkAndShowPopup()
-}, { immediate: true })
-
-// Setup periodic check when popup is visible
-const setupPeriodicCheck = () => {
-  // Clear any existing interval
-  if (periodicCheckInterval.value) {
-    clearInterval(periodicCheckInterval.value)
-  }
-  
-  // Set up new interval to check every 30 seconds when popup is visible
-  periodicCheckInterval.value = setInterval(async () => {
-    if (showDomainPopup.value) {
-      console.log('Periodic domain check triggered')
-      await refreshUserAndCheckDomain()
+// Direct API call to check domain status
+const checkDirectApiDomainStatus = async () => {
+  try {
+    // Call direct PHP script instead of regular API endpoint
+    const response = await axios.get('/check-domain-status.php', {
+      params: { 
+        _t: new Date().getTime()
+      },
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Session-Check': 'true',
+        'X-Client-Fingerprint': getClientFingerprint()
+      }
+    })
+    
+    console.log('Domain status check response:', response.data)
+    
+    if (response.data && response.data.needs_domain) {
+      return { 
+        needsDomain: true, 
+        message: response.data.message || 'Please set up your domain to continue using the dashboard.'
+      }
     }
-  }, 30000) // 30 seconds
-}
-
-// Clear periodic check
-const clearPeriodicCheck = () => {
-  if (periodicCheckInterval.value) {
-    clearInterval(periodicCheckInterval.value)
-    periodicCheckInterval.value = null
+    
+    return { needsDomain: false }
+  } catch (error) {
+    console.error('Error checking domain status:', error)
+    return { needsDomain: false, error }
   }
 }
 
-// Watch for popup visibility changes
-watch(showDomainPopup, (newValue) => {
-  if (newValue) {
-    setupPeriodicCheck()
-  } else {
-    clearPeriodicCheck()
+// Generate a simple browser fingerprint for session tracking
+const getClientFingerprint = () => {
+  try {
+    const components = [
+      navigator.userAgent,
+      navigator.language,
+      new Date().getTimezoneOffset(),
+      screen.width + 'x' + screen.height,
+      navigator.platform
+    ]
+    
+    return btoa(components.join('|')).substring(0, 32)
+  } catch (error) {
+    console.error('Error generating fingerprint:', error)
+    return 'fingerprint-error'
   }
-})
+}
 
-// Initialize on mount
-onMounted(async () => {
-  // Add a small delay to ensure auth store and router are fully initialized
-  await new Promise(resolve => setTimeout(resolve, 500))
+// Check if user needs domain - comprehensive check
+const checkDomainStatus = async () => {
+  try {
+    checkCount.value++
+    lastCheckTime.value = new Date().toLocaleTimeString()
+    
+    // Only check if the user is authenticated and is a client
+    if (!authStore.isAuthenticated || !isClient.value) {
+      showDomainPopup.value = false
+      userHasDomain.value = false
+      return false
+    }
+    
+    // 1. First refresh user data from the server
+    await refreshUserData()
+    
+    // 2. Check auth store data
+    const userNeedsDomainInStore = authStore.user && 
+      isClient.value && 
+      !authStore.user.domain_id && 
+      !(authStore.user.domain && authStore.user.domain.id)
+    
+    // 3. Check via direct API call for absolute certainty
+    const apiCheck = await checkDirectApiDomainStatus()
+    
+    console.log('Domain status check results:', {
+      userNeedsDomainInStore,
+      apiNeedsDomain: apiCheck.needsDomain,
+      currentPopupState: showDomainPopup.value,
+      userHasDomain: userHasDomain.value,
+      checkCount: checkCount.value
+    })
+    
+    // Determine if user needs domain
+    const needsDomain = userNeedsDomainInStore || apiCheck.needsDomain
+    
+    // Track domain status changes
+    const previousHasDomain = userHasDomain.value
+    userHasDomain.value = !needsDomain
+    
+    // Handle domain status changes
+    if (needsDomain) {
+      // User needs domain
+      if (!showDomainPopup.value) {
+        showDomainPopup.value = true
+        console.log('🔴 Showing domain popup - user needs domain')
+        
+        // If user previously had domain but now needs one, they lost their domain
+        if (previousHasDomain) {
+          console.log('⚠️ DOMAIN REMOVED - User lost their domain!')
+          
+          // Dispatch event for domain removal
+          window.dispatchEvent(new CustomEvent(DOMAIN_STATUS_EVENT, { 
+            detail: { 
+              message: 'Domain was removed - please set up a new domain',
+              event: 'domain_removed',
+              user: authStore.user
+            }
+          }))
+        }
+      }
+      
+      // Set fast checking interval (every 10 seconds) when user needs domain
+      setCheckingInterval(10000)
+      return true
+      
+    } else {
+      // User has domain
+      if (showDomainPopup.value) {
+        showDomainPopup.value = false
+        console.log('🟢 Hiding domain popup - user has domain')
+        
+        // If user previously needed domain but now has one, they added a domain
+        if (!previousHasDomain) {
+          console.log('✅ DOMAIN ADDED - User got their domain!')
+          
+          // Dispatch event for domain addition
+          window.dispatchEvent(new CustomEvent(DOMAIN_STATUS_EVENT, { 
+            detail: { 
+              message: 'Domain setup complete',
+              event: 'domain_added',
+              user: authStore.user
+            }
+          }))
+        }
+      }
+      
+      // Set fast checking interval (every 5 seconds) when user has domain  
+      // This allows very fast detection of admin domain deletions
+      setCheckingInterval(5000)
+      return false
+    }
+  } catch (error) {
+    console.error('Error checking domain status:', error)
+    return false
+  }
+}
+
+// Helper function to manage checking intervals
+const setCheckingInterval = (intervalMs) => {
+  // Clear existing interval
+  if (checkInterval.value) {
+    clearInterval(checkInterval.value)
+  }
   
-  // Force refresh user data on mount to ensure we have the latest domain info
-  await refreshUserAndCheckDomain()
-})
+  // Set new interval
+  checkInterval.value = setInterval(checkDomainStatus, intervalMs)
+  
+  const intervalType = intervalMs === 10000 ? 'NEEDS DOMAIN (10s)' : 
+                      intervalMs === 5000 ? 'HAS DOMAIN (5s - monitoring deletions)' : 'OTHER'
+  console.log(`🔄 Set domain checking interval to ${intervalMs/1000} seconds - ${intervalType}`)
+}
 
 // Handle logout
 const handleLogout = async () => {
@@ -197,24 +257,7 @@ const submitDomain = async () => {
   domainError.value = ''
 
   try {
-    // Debug auth state
-    console.log('Auth Debug Info:', {
-      isAuthenticated: authStore.isAuthenticated,
-      hasToken: !!authStore.token,
-      token: authStore.token ? `${authStore.token.substring(0, 10)}...` : 'No token',
-      user: authStore.user?.email || 'No user',
-      userRole: authStore.user?.role || 'No role'
-    })
-
-    // Debug the exact URL and request
-    console.log('Making API call to:', '/client/set-domain')
-    console.log('Request payload:', { domain: domainInput.value.trim() })
-    console.log('Request method:', 'post')
-    console.log('Base URL from axios:', (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api')
-    console.log('Full URL should be:', ((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api') + '/client/set-domain')
-
     // Submit domain to backend using session authentication only (no bearer token)
-    // Create a new axios instance without auth token for this specific request
     const sessionApi = axios.create({
       baseURL: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/api',
       headers: {
@@ -231,48 +274,106 @@ const submitDomain = async () => {
     
     const data = response.data
 
-    console.log('API call successful:', data)
+    console.log('Domain submission successful:', data)
 
     if (data.success) {
-      // Refresh user data to get the updated domain information
-      await refreshUserAndCheckDomain()
-      
-      // Clear form data
+      // IMMEDIATELY hide the popup - don't wait for any checks
       showDomainPopup.value = false
+      userHasDomain.value = true // Mark that user now has domain
+      
+      // Clear form data immediately
       domainInput.value = ''
+      domainError.value = ''
+      
+      // Update auth store user data immediately with the response data
+      if (authStore.user && data.data?.user?.domain_id) {
+        authStore.user.domain_id = data.data.user.domain_id
+        if (data.data.domain) {
+          authStore.user.domain = data.data.domain
+        }
+        
+        // Ensure role is normalized to lowercase for consistent comparisons
+        if (authStore.user.role) {
+          authStore.user.role = authStore.user.role.toLowerCase()
+        }
+        
+        // Update localStorage immediately
+        localStorage.setItem('userData', JSON.stringify(authStore.user))
+        console.log('Auth store updated immediately with domain:', authStore.user.domain_id)
+      }
       
       // Show success message
-      console.log('Domain set successfully:', data.message)
+      console.log('Domain set successfully - popup hidden immediately:', data.message)
+      
+      // Refresh user data in the background for consistency (but don't wait for it)
+      refreshUserData().then(() => {
+        console.log('Background user data refresh completed')
+      }).catch(error => {
+        console.error('Background refresh failed:', error)
+      })
+      
+      // Switch to faster checking interval since user now has domain
+      setCheckingInterval(5000)
+      
+      // Dispatch success event
+      window.dispatchEvent(new CustomEvent(DOMAIN_STATUS_EVENT, { 
+        detail: { 
+          message: 'Domain successfully added',
+          event: 'domain_added',
+          user: authStore.user
+        }
+      }))
+      
     } else {
       domainError.value = data.message || 'Failed to set domain'
     }
   } catch (error) {
-    console.error('Full error object:', error)
-    console.error('Error details:', {
-      message: error.message,
-      status: error.status,
-      statusText: error.statusText,
-      originalError: error.originalError,
-      rawResponseData: error.rawResponseData
-    })
+    console.error('Error submitting domain:', error)
     
-    // The apiCall utility provides better error messages
-    domainError.value = error.message || 'An error occurred while setting the domain'
+    if (error.response?.data?.message) {
+      domainError.value = error.response.data.message
+    } else {
+      domainError.value = 'An error occurred while setting the domain'
+    }
   } finally {
     isSubmittingDomain.value = false
   }
 }
 
-// Close popup (only if user already has a domain)
-const closeDomainPopup = () => {
-  if (hasDomain.value) {
-    showDomainPopup.value = false
-  }
-}
+// Start periodic checks when the component is mounted
+onMounted(async () => {
+  console.log('🚀 DomainSetupPopup mounted, initializing domain monitoring...')
+  
+  // Check immediately on mount to determine initial state
+  const needsDomain = await checkDomainStatus()
+  
+  // The checkDomainStatus function now automatically sets the appropriate interval
+  console.log(`📊 Initial domain status: ${needsDomain ? 'NEEDS DOMAIN' : 'HAS DOMAIN'}`)
+  
+  // Also add event listener for focus/visibility changes to check when the tab becomes active
+  window.addEventListener('focus', checkDomainStatus)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkDomainStatus()
+    }
+  })
+  
+  // Listen for custom event from other components
+  window.addEventListener(DOMAIN_STATUS_EVENT, (event) => {
+    console.log('🔔 Domain status event received:', event.detail)
+  })
+})
 
-// Cleanup logic when component is unmounted
+// Clean up when component is unmounted
 onUnmounted(() => {
-  clearPeriodicCheck()
+  if (checkInterval.value) {
+    clearInterval(checkInterval.value)
+    checkInterval.value = null
+  }
+  
+  window.removeEventListener('focus', checkDomainStatus)
+  document.removeEventListener('visibilitychange', checkDomainStatus)
+  window.removeEventListener(DOMAIN_STATUS_EVENT, () => {})
 })
 </script>
 

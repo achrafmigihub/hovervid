@@ -39,6 +39,10 @@ class ClientController extends Controller
             }
             
             // If no cache, fetch fresh data
+            // Refresh user from database and load domain relationship
+            $user = $user->fresh();
+            $user->load('domain');
+            
             $data = [
                 'totalViews' => 1250,
                 'activePlugins' => 1,
@@ -57,7 +61,13 @@ class ClientController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'domain_id' => $user->domain_id,
-                    'domain' => $user->domain ? $user->domain->domain : null
+                    'domain' => $user->domain ? [
+                        'id' => $user->domain->id,
+                        'domain' => $user->domain->domain,
+                        'status' => $user->domain->status,
+                        'is_active' => $user->domain->is_active,
+                        'is_verified' => $user->domain->is_verified,
+                    ] : null
                 ]
             ];
             

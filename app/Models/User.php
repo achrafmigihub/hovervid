@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 class User extends Authenticatable implements JWTSubject
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -23,6 +24,7 @@ class User extends Authenticatable implements JWTSubject
         'role',
         'status',
         'domain_id',
+        'is_suspended',
     ];
 
     /**
@@ -82,5 +84,38 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [];
+    }
+
+    /**
+     * Get validation rules for creating a user
+     *
+     * @return array
+     */
+    public static function createRules(): array
+    {
+        return [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'sometimes|string|min:6',
+            'role' => 'sometimes|string|in:admin,client,manager',
+            'status' => 'sometimes|string|in:active,inactive,suspended',
+        ];
+    }
+
+    /**
+     * Get validation rules for updating a user
+     *
+     * @param int|null $userId
+     * @return array
+     */
+    public static function updateRules(?int $userId = null): array
+    {
+        return [
+            'name' => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . ($userId ?? 'NULL'),
+            'password' => 'sometimes|string|min:6',
+            'role' => 'sometimes|string|in:admin,client,manager',
+            'status' => 'sometimes|string|in:active,inactive,suspended',
+        ];
     }
 } 

@@ -179,28 +179,18 @@ class AdminUserController extends Controller
      * @param  \App\Models\User  $user
      * @return \Illuminate\Http\JsonResponse
      */
-    public function show($id)
+    public function show(User $user)
     {
         try {
-            // Get the user
-            $user = User::findOrFail($id);
-            
             // Authorize the request using policy
             $this->authorize('view', $user);
             
-            // Use the repository to get user details
-            $userData = $this->userRepository->getUserById($id);
-            
             return response()->json([
-                'user' => $userData
+                'user' => $user
             ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'message' => 'User not found'
-            ], 404);
         } catch (\Exception $e) {
             Log::error('Error fetching user', [
-                'id' => $id,
+                'id' => $user->id,
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -338,6 +328,175 @@ class AdminUserController extends Controller
             return response()->json([
                 'message' => 'Failed to delete user',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'An error occurred while deleting the user'
+            ], 500);
+        }
+    }
+
+    /**
+     * Display user statistics.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function stats()
+    {
+        try {
+            // Authorize the request using policy
+            $this->authorize('viewAny', User::class);
+            
+            // Get user statistics from repository
+            $stats = $this->userRepository->getUserStats();
+            
+            return response()->json($stats);
+        } catch (\Exception $e) {
+            Log::error('Error fetching user statistics', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'message' => 'Failed to fetch user statistics',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'An error occurred while fetching user statistics'
+            ], 500);
+        }
+    }
+
+    /**
+     * Direct user update endpoint (for frontend compatibility).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function directUpdate(Request $request)
+    {
+        try {
+            // Get the user ID from query parameter
+            $userId = $request->query('id');
+            
+            if (!$userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User ID is required',
+                ], 400);
+            }
+
+            // Find the user
+            $user = User::find($userId);
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found',
+                ], 404);
+            }
+
+            // Authorize the request using policy
+            $this->authorize('update', $user);
+
+            // Get all input data
+            $data = $request->all();
+            $updateData = [];
+            $errors = [];
+
+            // Validate name
+            if (isset($data['name'])) {
+                $name = trim($data['name']);
+                if (empty($name)) {
+                    $errors['name'] = ['Name is required'];
+                } else {
+                    $updateData['name'] = $name;
+                }
+            }
+
+            // Validate email
+            if (isset($data['email'])) {
+                $email = trim($data['email']);
+                if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $errors['email'] = ['Please provide a valid email address'];
+                } else {
+                    // Check if email is already taken by another user
+                    $existingUser = User::where('email', $email)->where('id', '!=', $userId)->first();
+                    if ($existingUser) {
+                        $errors['email'] = ['This email is already in use'];
+                    } else {
+                        $updateData['email'] = $email;
+                    }
+                }
+            }
+
+            // Validate role
+            if (isset($data['role'])) {
+                $role = trim($data['role']);
+                if (!in_array($role, ['admin', 'client'])) {
+                    $errors['role'] = ['Role must be admin or client'];
+                } else {
+                    $updateData['role'] = $role;
+                }
+            }
+
+            // Validate status
+            if (isset($data['status'])) {
+                $status = trim($data['status']);
+                $validStatuses = ['active', 'inactive', 'pending', 'banned', 'suspended'];
+                if (!in_array($status, $validStatuses)) {
+                    $errors['status'] = ['Status must be one of: ' . implode(', ', $validStatuses)];
+                } else {
+                    $updateData['status'] = $status;
+                    
+                    // Handle suspension logic
+                    if ($status === 'suspended') {
+                        $updateData['is_suspended'] = true;
+                    } else {
+                        $updateData['is_suspended'] = false;
+                    }
+                }
+            }
+
+            // If there are validation errors, return them
+            if (!empty($errors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $errors
+                ], 422);
+            }
+
+            // Update the user
+            if (!empty($updateData)) {
+                $user->update($updateData);
+                $user->refresh();
+            }
+
+            Log::info('User updated via direct endpoint', [
+                'admin_id' => Auth::id(),
+                'user_id' => $user->id,
+                'updated_fields' => array_keys($updateData)
+            ]);
+
+            // Return success response in the format expected by frontend
+            return response()->json([
+                'success' => true,
+                'message' => 'User updated successfully',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'status' => $user->status,
+                    'is_suspended' => $user->is_suspended,
+                    'created_at' => $user->created_at,
+                    'updated_at' => $user->updated_at
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in direct user update', [
+                'user_id' => $request->query('id'),
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while updating the user',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }

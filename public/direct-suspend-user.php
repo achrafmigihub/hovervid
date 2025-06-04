@@ -16,8 +16,9 @@ $response = $kernel->handle(
 
 // Set CORS headers
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Auth-Token, Authorization, X-Requested-With, X-CSRF-TOKEN');
+header('Access-Control-Max-Age: 86400');
 header('Content-Type: application/json');
 
 // Handle preflight requests
@@ -26,11 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Only allow POST requests
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+// Allow both POST and GET requests (for compatibility)
+if (!in_array($_SERVER['REQUEST_METHOD'], ['POST', 'GET'])) {
     echo json_encode([
         'success' => false,
-        'message' => 'Method not allowed',
+        'message' => 'Method not allowed. Use POST or GET.',
     ]);
     exit;
 }

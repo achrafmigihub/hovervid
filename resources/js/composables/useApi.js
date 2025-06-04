@@ -11,7 +11,7 @@ export const useApi = createFetch({
   options: {
     refetch: true,
     async beforeFetch({ options }) {
-      const accessToken = useCookie('accessToken').value
+      const accessToken = localStorage.getItem('accessToken')
       if (accessToken) {
         options.headers = {
           ...options.headers,

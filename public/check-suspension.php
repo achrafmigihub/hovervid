@@ -3,7 +3,7 @@
 /**
  * Direct script to check user suspension status
  * This bypasses routing and middleware for a direct check
- * Now also handles user status updates and session tracking
+ * Checks if a user is suspended
  */
 
 // Bootstrap the Laravel application
@@ -15,7 +15,7 @@ $request = Illuminate\Http\Request::capture();
 // Add CORS headers
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-TOKEN, X-Session-Check, X-Client-Fingerprint');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-TOKEN, X-Session-Check, X-Client-Fingerprint, Cache-Control, Pragma, Expires');
 header('Access-Control-Max-Age: 86400');
 
 // Return JSON
@@ -36,7 +36,7 @@ try {
     // Check if this is a session check (coming from SuspendedUserModal)
     $isSessionCheck = !empty($_SERVER['HTTP_X_SESSION_CHECK']);
     $clientFingerprint = $_SERVER['HTTP_X_CLIENT_FINGERPRINT'] ?? null;
-    $shouldUpdateStatus = isset($_GET['updateStatus']) && $_GET['updateStatus'] === 'true';
+    $updateStatus = !empty($_GET['updateStatus']);
     
     // Get user from session
     $user = null;
@@ -50,8 +50,6 @@ try {
         $token = str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']);
         $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
     }
-    
-    $statusUpdated = false;
     
     if (!$user) {
         echo json_encode([
@@ -75,59 +73,16 @@ try {
     }
     
     // Check if user is suspended
-    $isSuspended = $freshUser->is_suspended || $freshUser->status === 'suspended';
-    
-    // If not suspended and this is a session check with an update request, update the user status
-    if (!$isSuspended && $isSessionCheck && $shouldUpdateStatus) {
-        // Only update status to active if it's not already active
-        if ($freshUser->status !== 'active') {
-            $freshUser->status = 'active';
-            $freshUser->save();
-            $statusUpdated = true;
-            
-            // Log the status update
-            \Illuminate\Support\Facades\Log::info('User status updated via check-suspension.php', [
-                'user_id' => $freshUser->id,
-                'status' => 'active'
-            ]);
-        }
-        
-        // Record the session fingerprint if provided
-        if ($clientFingerprint) {
-            try {
-                // Get the current session ID
-                $sessionId = \Illuminate\Support\Facades\Session::getId();
-                
-                // Update the session record in the sessions table
-                \Illuminate\Support\Facades\DB::table('sessions')
-                    ->where('id', $sessionId)
-                    ->update([
-                        'fingerprint' => $clientFingerprint,
-                        'last_activity' => time(),
-                        'is_active' => true
-                    ]);
-                
-                // Log session update
-                \Illuminate\Support\Facades\Log::info('Session fingerprint updated', [
-                    'session_id' => $sessionId,
-                    'user_id' => $freshUser->id
-                ]);
-            } catch (\Exception $e) {
-                // Log the error but continue
-                \Illuminate\Support\Facades\Log::warning('Failed to update session fingerprint', [
-                    'error' => $e->getMessage(),
-                    'user_id' => $freshUser->id
-                ]);
-            }
-        }
-    }
+    $isSuspended = $freshUser->is_suspended || strtolower($freshUser->status ?? '') === 'suspended';
     
     // Log the check
-    \Illuminate\Support\Facades\Log::info('Suspension check', [
+    \Illuminate\Support\Facades\Log::info('Suspension status check', [
         'user_id' => $freshUser->id,
+        'user_email' => $freshUser->email,
         'is_suspended' => $isSuspended,
+        'user_status' => $freshUser->status,
         'session_check' => $isSessionCheck,
-        'status_updated' => $statusUpdated
+        'update_status' => $updateStatus
     ]);
     
     // Return the result
@@ -135,22 +90,24 @@ try {
         'status' => 'success',
         'timestamp' => time(),
         'is_suspended' => $isSuspended,
-        'status_updated' => $statusUpdated,
         'session_check' => $isSessionCheck,
+        'status_updated' => false, // We're not updating status in this script
         'user_data' => [
             'id' => $freshUser->id,
             'email' => $freshUser->email,
             'name' => $freshUser->name,
+            'role' => $freshUser->role,
             'status' => $freshUser->status,
-            'is_suspended' => $freshUser->is_suspended,
-            'role' => $freshUser->role
+            'is_suspended' => $freshUser->is_suspended
         ],
-        'message' => $isSuspended ? 'Your account has been suspended. Please contact administration for assistance.' : 'Account is active'
+        'message' => $isSuspended ? 
+            'Your account has been suspended. Please contact administration for assistance.' : 
+            'User account is active.'
     ]);
     
 } catch (\Exception $e) {
     // Log the error
-    \Illuminate\Support\Facades\Log::error('Error in suspension check', [
+    \Illuminate\Support\Facades\Log::error('Error in suspension status check', [
         'message' => $e->getMessage(),
         'trace' => $e->getTraceAsString()
     ]);

@@ -49,7 +49,19 @@ Route::prefix('plugin')->group(function () {
 });
 
 // Public auth routes
-Route::group(['prefix' => 'auth', 'middleware' => ['web', \App\Http\Middleware\SessionConfig::class]], function () {
+Route::group([
+    'prefix' => 'auth', 
+    'middleware' => [
+        \Illuminate\Cookie\Middleware\EncryptCookies::class,
+        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Illuminate\Session\Middleware\StartSession::class,
+        \App\Http\Middleware\SessionConfig::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        // Note: No CSRF verification for API auth routes
+        \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        \App\Http\Middleware\ForceJsonResponse::class,
+    ]
+], function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
     Route::post('verify-email', [AuthController::class, 'verifyEmail'])->name('verification.verify');
@@ -57,13 +69,36 @@ Route::group(['prefix' => 'auth', 'middleware' => ['web', \App\Http\Middleware\S
 });
 
 // Protected auth routes
-Route::group(['middleware' => ['web', 'auth:sanctum', \App\Http\Middleware\SessionConfig::class, 'nocache'], 'prefix' => 'auth'], function () {
+Route::group([
+    'middleware' => [
+        \Illuminate\Cookie\Middleware\EncryptCookies::class,
+        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Illuminate\Session\Middleware\StartSession::class,
+        \App\Http\Middleware\SessionConfig::class,
+        'auth:sanctum',
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        \App\Http\Middleware\ForceJsonResponse::class,
+    ], 
+    'prefix' => 'auth'
+], function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [AuthController::class, 'userProfile']);
 });
 
 // Special session-only route for user profile (without token requirement)
-Route::group(['middleware' => ['web', \App\Http\Middleware\SessionConfig::class, 'nocache'], 'prefix' => 'auth'], function () {
+Route::group([
+    'middleware' => [
+        \Illuminate\Cookie\Middleware\EncryptCookies::class,
+        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Illuminate\Session\Middleware\StartSession::class,
+        \App\Http\Middleware\SessionConfig::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        \App\Http\Middleware\ForceJsonResponse::class,
+    ], 
+    'prefix' => 'auth'
+], function () {
     Route::get('session-user', [AuthController::class, 'sessionUser']);
 });
 
@@ -90,10 +125,11 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     
     // User management routes
     Route::get('/users', [\App\Http\Controllers\API\AdminUserController::class, 'index']);
-    Route::get('/users/{id}', [\App\Http\Controllers\API\AdminUserController::class, 'show']);
+    Route::get('/users/stats', [\App\Http\Controllers\API\AdminUserController::class, 'stats']);
+    Route::get('/users/{user}', [\App\Http\Controllers\API\AdminUserController::class, 'show']);
     Route::post('/users', [\App\Http\Controllers\API\AdminUserController::class, 'store']);
-    Route::put('/users/{id}', [\App\Http\Controllers\API\AdminUserController::class, 'update']);
-    Route::delete('/users/{id}', [\App\Http\Controllers\API\AdminUserController::class, 'destroy']);
+    Route::put('/users/{user}', [\App\Http\Controllers\API\AdminUserController::class, 'update']);
+    Route::delete('/users/{user}', [\App\Http\Controllers\API\AdminUserController::class, 'destroy']);
     
     // Session management routes
     Route::get('/sessions', [\App\Http\Controllers\API\AdminSessionController::class, 'index']);
@@ -112,6 +148,9 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::delete('/domains/{id}', [DomainApiController::class, 'destroy']);
 });
 
+// Direct user update endpoint (for frontend compatibility)
+Route::middleware(['auth:sanctum', 'role:admin'])->post('/direct-update-user.php', [\App\Http\Controllers\API\AdminUserController::class, 'directUpdate']);
+
 // Temporary: Public admin domains route for testing (remove after authentication is fixed)
 Route::prefix('admin')->group(function () {
     Route::get('/domains', [DomainApiController::class, 'index']);
@@ -127,30 +166,6 @@ Route::get('/ping', function () {
         'message' => 'API is functioning correctly',
         'server_time' => now()->toIso8601String(),
         'environment' => app()->environment(),
-    ]);
-});
-
-// Debug route for domain checking (temporary for debugging)
-Route::middleware(['auth:sanctum'])->get('/debug/user-domain', function (Request $request) {
-    $user = $request->user();
-    if (!$user) {
-        return response()->json(['error' => 'Unauthenticated'], 401);
-    }
-    
-    // Load fresh user with domain
-    $user = $user->fresh();
-    $user->load('domain');
-    
-    return response()->json([
-        'user_id' => $user->id,
-        'email' => $user->email,
-        'role' => $user->role,
-        'domain_id' => $user->domain_id,
-        'domain_relationship' => $user->domain,
-        'has_domain_id' => !empty($user->domain_id),
-        'has_domain_relationship' => !empty($user->domain),
-        'domain_count' => $user->domains()->count(),
-        'active_domains' => $user->domains()->where('is_active', true)->get()
     ]);
 });
 
@@ -192,14 +207,24 @@ Route::middleware(['auth:sanctum'])->prefix('profile')->group(function () {
 });
 
 // User session management routes
-Route::middleware(['auth:sanctum', 'web', \App\Http\Middleware\SessionConfig::class, \App\Http\Middleware\SessionManager::class])
+Route::middleware([
+    \Illuminate\Cookie\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \App\Http\Middleware\SessionConfig::class,
+    'auth:sanctum',
+    \App\Http\Middleware\SessionManager::class,
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    \App\Http\Middleware\ForceJsonResponse::class,
+])
     ->prefix('sessions')
     ->group(function () {
         Route::get('/', [UserSessionController::class, 'index']);
-        Route::delete('/{id}', [UserSessionController::class, 'destroy']);
         Route::post('/current/refresh', [UserSessionController::class, 'refreshCurrent']);
         Route::delete('/other', [UserSessionController::class, 'revokeOthers']);
         Route::get('/stats', [UserSessionController::class, 'stats']);
+        Route::delete('/{id}', [UserSessionController::class, 'destroy']);
     });
 
 // Domain routes (legacy - kept for backward compatibility)
@@ -214,8 +239,37 @@ Route::prefix('content')->group(function () {
     Route::get('/', [App\Http\Controllers\API\ContentController::class, 'index']);
 });
 
+// Invoice API routes for admin dashboard
+Route::middleware([
+    \Illuminate\Cookie\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \App\Http\Middleware\SessionConfig::class,
+    'auth:sanctum',
+    'role:admin',
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    \App\Http\Middleware\ForceJsonResponse::class,
+])->prefix('apps')->group(function () {
+    Route::get('/invoice', [\App\Http\Controllers\API\InvoiceController::class, 'index']);
+    Route::post('/invoice', [\App\Http\Controllers\API\InvoiceController::class, 'store']);
+    Route::get('/invoice/{invoice}', [\App\Http\Controllers\API\InvoiceController::class, 'show']);
+    Route::put('/invoice/{invoice}', [\App\Http\Controllers\API\InvoiceController::class, 'update']);
+    Route::delete('/invoice/{invoice}', [\App\Http\Controllers\API\InvoiceController::class, 'destroy']);
+});
+
 // Client Domain Management Routes (Protected by hybrid auth - supports both session and token authentication)
-Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\SessionConfig::class])->prefix('client')->group(function () {
+Route::middleware([
+    \Illuminate\Cookie\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \App\Http\Middleware\SessionConfig::class,
+    'auth:sanctum',
+    'role:client',
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    \App\Http\Middleware\ForceJsonResponse::class,
+])->prefix('client')->group(function () {
     Route::get('/dashboard', [ClientController::class, 'dashboard']);
     Route::get('/dashboard-stats', [ClientController::class, 'dashboardStats']);
     
@@ -229,6 +283,24 @@ Route::middleware(['web', 'auth:sanctum', 'role:client', \App\Http\Middleware\Se
     Route::get('/content', [\App\Http\Controllers\API\ContentController::class, 'getClientContent']);
     Route::delete('/content/{contentId}', [\App\Http\Controllers\API\ContentController::class, 'rejectContent']);
     Route::post('/content/{contentId}/upload-video', [\App\Http\Controllers\API\ContentController::class, 'uploadVideo']);
+});
+
+// Admin User Management Routes (Session-based for admin dashboard)
+Route::middleware([
+    \Illuminate\Cookie\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \App\Http\Middleware\SessionConfig::class,
+    'auth:sanctum',
+    'role:admin',
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    \App\Http\Middleware\ForceJsonResponse::class,
+])->prefix('admin')->group(function () {
+    // User suspension routes (session-based)
+    Route::post('/users/{user}/suspend', [\App\Http\Controllers\API\UserManagementController::class, 'suspend']);
+    Route::post('/users/{user}/unsuspend', [\App\Http\Controllers\API\UserManagementController::class, 'unsuspend']);
+    Route::post('/users/{user}/change-password', [\App\Http\Controllers\API\UserManagementController::class, 'changePassword']);
 });
 
 // Fallback route for API 404s - must be at the end of the file

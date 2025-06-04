@@ -19,7 +19,7 @@ class UserPolicy
     public function viewAny(User $user): bool
     {
         // Only admins can list users
-        return $user->role === UserRoleEnum::ADMIN;
+        return $user->role === UserRoleEnum::ADMIN->value;
     }
 
     /**
@@ -32,7 +32,7 @@ class UserPolicy
     public function view(User $user, User $model): bool
     {
         // Admins can view any user profile
-        if ($user->role === UserRoleEnum::ADMIN) {
+        if ($user->role === UserRoleEnum::ADMIN->value) {
             return true;
         }
 
@@ -49,7 +49,7 @@ class UserPolicy
     public function create(User $user): bool
     {
         // Only admins can create users
-        return $user->role === UserRoleEnum::ADMIN;
+        return $user->role === UserRoleEnum::ADMIN->value;
     }
 
     /**
@@ -62,7 +62,7 @@ class UserPolicy
     public function update(User $user, User $model): bool
     {
         // Admins can update any user
-        if ($user->role === UserRoleEnum::ADMIN) {
+        if ($user->role === UserRoleEnum::ADMIN->value) {
             return true;
         }
 
@@ -80,7 +80,7 @@ class UserPolicy
     public function delete(User $user, User $model): bool
     {
         // Only admins can delete users
-        if ($user->role !== UserRoleEnum::ADMIN) {
+        if ($user->role !== UserRoleEnum::ADMIN->value) {
             return false;
         }
 
@@ -98,7 +98,7 @@ class UserPolicy
     public function restore(User $user, User $model): bool
     {
         // Only admins can restore deleted users
-        return $user->role === UserRoleEnum::ADMIN;
+        return $user->role === UserRoleEnum::ADMIN->value;
     }
 
     /**
@@ -111,7 +111,7 @@ class UserPolicy
     public function forceDelete(User $user, User $model): bool
     {
         // Only admins can permanently delete users
-        if ($user->role !== UserRoleEnum::ADMIN) {
+        if ($user->role !== UserRoleEnum::ADMIN->value) {
             return false;
         }
 

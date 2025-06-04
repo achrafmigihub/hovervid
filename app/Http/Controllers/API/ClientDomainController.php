@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Exception;
 
 class ClientDomainController extends Controller
@@ -90,6 +91,10 @@ class ClientDomainController extends Controller
             // Commit the transaction
             DB::commit();
 
+            // Clear cache for this user to ensure fresh data on next request
+            Cache::forget("dashboard_data_{$user->id}");
+            Cache::forget("dashboard_stats_{$user->id}");
+
             // Log successful domain registration
             Log::info('Domain registered successfully', [
                 'user_id' => $user->id,
@@ -111,6 +116,10 @@ class ClientDomainController extends Controller
                         'is_verified' => $domain->is_verified,
                         'created_at' => $domain->created_at,
                         'url' => $domain->url
+                    ],
+                    'user' => [
+                        'id' => $user->id,
+                        'domain_id' => $domain->id
                     ]
                 ]
             ]);
@@ -237,6 +246,10 @@ class ClientDomainController extends Controller
             // Commit the transaction
             DB::commit();
 
+            // Clear cache for this user to ensure fresh data on next request
+            Cache::forget("dashboard_data_{$user->id}");
+            Cache::forget("dashboard_stats_{$user->id}");
+
             // Log successful domain update
             Log::info('Domain updated successfully', [
                 'user_id' => $user->id,
@@ -319,6 +332,10 @@ class ClientDomainController extends Controller
 
             // Commit the transaction
             DB::commit();
+
+            // Clear cache for this user to ensure fresh data on next request
+            Cache::forget("dashboard_data_{$user->id}");
+            Cache::forget("dashboard_stats_{$user->id}");
 
             Log::info('Domain deactivated', [
                 'user_id' => $user->id,

@@ -40,7 +40,7 @@ class Session extends Model
      *
      * @var bool
      */
-    public $timestamps = false;
+    public $timestamps = true;
 
     /**
      * The attributes that are mass assignable.
@@ -57,8 +57,7 @@ class Session extends Model
         'is_active',
         'expires_at',
         'fingerprint',
-        'device_info',
-        'geo_location'
+        'device_info'
     ];
 
     /**
@@ -70,8 +69,7 @@ class Session extends Model
         'last_activity' => 'integer',
         'is_active' => 'boolean',
         'expires_at' => 'datetime',
-        'device_info' => 'array',
-        'geo_location' => 'array'
+        'device_info' => 'array'
     ];
 
     /**
@@ -92,7 +90,7 @@ class Session extends Model
     {
         return static::create(array_merge([
             'is_active' => true,
-            'expires_at' => now()->addMinutes(config('session.lifetime', 120)),
+            'expires_at' => now()->addMinutes((int)config('session.lifetime', 120)),
             'last_activity' => time(),
         ], $data));
     }

@@ -45,8 +45,14 @@ const refreshUserData = async () => {
 // Direct API call to check suspension status
 const checkDirectApiSuspension = async () => {
   try {
+    // Create a new axios instance without the /api prefix for direct scripts
+    const directAxios = axios.create({
+      baseURL: window.location.origin,
+      withCredentials: true
+    })
+    
     // Call direct PHP script instead of regular API endpoint with user info
-    const response = await axios.get('/check-suspension.php', {
+    const response = await directAxios.get('/check-suspension.php', {
       params: { 
         _t: new Date().getTime(),
         updateStatus: true // Signal intent to update user status

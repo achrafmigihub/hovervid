@@ -53,9 +53,31 @@ class SessionConfig
                     
                     Log::info('New session created', ['session_id' => $sessionId]);
                     
-                    // Create a new session record
-                    if ($request->user()) {
-                        Log::info('User authenticated, creating session record', [
+                    // Session record will be created later when user authenticates
+                    
+                    $request->setLaravelSession($session->driver());
+                } catch (\Exception $e) {
+                    Log::error('Failed to create new session', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    throw $e;
+                }
+            } else {
+                Log::info('Session exists on request', [
+                    'session_id' => $request->session()->getId()
+                ]);
+                
+                // Session exists, update fingerprint if provided and different
+                $this->updateSessionFingerprint($request, $fingerprint);
+                
+                // If user is authenticated and session record doesn't exist, create it
+                if ($request->user()) {
+                    $sessionId = $request->session()->getId();
+                    $sessionRecord = DB::table('sessions')->where('id', $sessionId)->first();
+                    
+                    if (!$sessionRecord) {
+                        Log::info('Creating session record for existing session with authenticated user', [
                             'user_id' => $request->user()->id,
                             'session_id' => $sessionId
                         ]);
@@ -75,30 +97,15 @@ class SessionConfig
                                 ],
                             ]);
                             
-                            Log::info('Session record created successfully');
+                            Log::info('Session record created for existing session');
                         } catch (\Exception $e) {
-                            Log::error('Failed to create session record', [
+                            Log::error('Failed to create session record for existing session', [
                                 'error' => $e->getMessage(),
                                 'trace' => $e->getTraceAsString()
                             ]);
                         }
                     }
-                    
-                    $request->setLaravelSession($session->driver());
-                } catch (\Exception $e) {
-                    Log::error('Failed to create new session', [
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
-                    ]);
-                    throw $e;
                 }
-            } else {
-                Log::info('Session exists on request', [
-                    'session_id' => $request->session()->getId()
-                ]);
-                
-                // Session exists, update fingerprint if provided and different
-                $this->updateSessionFingerprint($request, $fingerprint);
             }
 
             // Ensure session is started
