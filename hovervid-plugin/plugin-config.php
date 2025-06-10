@@ -36,7 +36,7 @@ if (!defined('HOVERVID_API_URL')) {
      * - Production: 'https://api.yourdomain.com'
      * - Subdomain: 'https://hovervid-api.yourdomain.com'
      */
-    define('HOVERVID_API_URL', 'https://your-laravel-backend.com');
+    define('HOVERVID_API_URL', 'http://localhost:8000');
 }
 
 /**

@@ -14,6 +14,7 @@ use App\Http\Controllers\API\ClientDomainController;
 use App\Http\Controllers\API\PluginDomainController;
 use App\Http\Controllers\API\PluginStatusController;
 use App\Http\Controllers\Api\PluginController;
+use App\Http\Controllers\API\VideoProxyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +37,11 @@ Route::prefix('plugin')->group(function () {
     Route::post('/verify-domain', [PluginController::class, 'verifyDomain']);
     Route::post('/update-status', [PluginController::class, 'updateStatus']);
     Route::get('/domain-status', [PluginController::class, 'getDomainStatus']);
+    
+    // Video availability checking endpoints
+    Route::post('/check-video', [PluginController::class, 'checkVideoAvailability']);
+    Route::post('/get-video', [PluginController::class, 'getVideoByHash']);
+    Route::post('/batch-check-videos', [PluginController::class, 'batchCheckVideoAvailability']);
     
     // Plugin status tracking routes
     Route::post('/status/update', [PluginStatusController::class, 'updateStatus']);
@@ -144,6 +150,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/domains/{id}/activate', [DomainApiController::class, 'activate']);
     Route::post('/domains/{id}/deactivate', [DomainApiController::class, 'deactivate']);
     Route::post('/domains/{id}/verify', [DomainApiController::class, 'verify']);
+    Route::post('/domains/{id}/unverify', [DomainApiController::class, 'unverify']);
     Route::put('/domains/{id}', [DomainApiController::class, 'update']);
     Route::delete('/domains/{id}', [DomainApiController::class, 'destroy']);
 });
@@ -153,9 +160,28 @@ Route::middleware(['auth:sanctum', 'role:admin'])->post('/direct-update-user.php
 
 // Temporary: Public admin domains route for testing (remove after authentication is fixed)
 Route::prefix('admin')->group(function () {
+    Route::get('/users', [\App\Http\Controllers\API\AdminUserController::class, 'index']);
+    Route::get('/user-lookup', function (Request $request) {
+        $search = $request->query('search', '');
+        if (empty($search)) {
+            return response()->json(['data' => []]);
+        }
+        
+        $users = DB::table('users')
+            ->select('id', 'name', 'email', 'role')
+            ->where('email', 'ILIKE', "%{$search}%")
+            ->orWhere('name', 'ILIKE', "%{$search}%")
+            ->limit(10)
+            ->get();
+            
+        return response()->json(['data' => $users]);
+    });
     Route::get('/domains', [DomainApiController::class, 'index']);
+    Route::post('/domains', [DomainApiController::class, 'store']);
     Route::post('/domains/{id}/activate', [DomainApiController::class, 'activate']);
     Route::post('/domains/{id}/deactivate', [DomainApiController::class, 'deactivate']);
+    Route::post('/domains/{id}/verify', [DomainApiController::class, 'verify']);
+    Route::post('/domains/{id}/unverify', [DomainApiController::class, 'unverify']);
     Route::delete('/domains/{id}', [DomainApiController::class, 'destroy']);
 });
 
@@ -283,6 +309,7 @@ Route::middleware([
     Route::get('/content', [\App\Http\Controllers\API\ContentController::class, 'getClientContent']);
     Route::delete('/content/{contentId}', [\App\Http\Controllers\API\ContentController::class, 'rejectContent']);
     Route::post('/content/{contentId}/upload-video', [\App\Http\Controllers\API\ContentController::class, 'uploadVideo']);
+    Route::patch('/content/{contentId}/video-url', [\App\Http\Controllers\API\ContentController::class, 'updateVideoUrl']);
 });
 
 // Admin User Management Routes (Session-based for admin dashboard)
@@ -301,6 +328,60 @@ Route::middleware([
     Route::post('/users/{user}/suspend', [\App\Http\Controllers\API\UserManagementController::class, 'suspend']);
     Route::post('/users/{user}/unsuspend', [\App\Http\Controllers\API\UserManagementController::class, 'unsuspend']);
     Route::post('/users/{user}/change-password', [\App\Http\Controllers\API\UserManagementController::class, 'changePassword']);
+});
+
+// Public API routes (no authentication required) for the plugin
+Route::middleware([
+    \Illuminate\Cookie\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \App\Http\Middleware\SessionConfig::class,
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    \App\Http\Middleware\ForceJsonResponse::class,
+])->group(function () {
+    Route::post('/store-content', [\App\Http\Controllers\API\ContentController::class, 'store']);
+    Route::get('/get-content', [\App\Http\Controllers\API\ContentController::class, 'index']);
+    
+    // New route for plugin to get video for specific content
+    Route::get('/content/{contentId}/video', [\App\Http\Controllers\API\ContentController::class, 'getContentVideo']);
+});
+
+// Simple video proxy route (no middleware for CORS simplicity)
+Route::get('/video-proxy/{encodedUrl}', function($encodedUrl) {
+    try {
+        $videoUrl = base64_decode(urldecode($encodedUrl));
+        
+        if (!str_contains($videoUrl, 'wasabisys.com')) {
+            return response('Unauthorized', 403);
+        }
+        
+        // Extract the file path from the full URL for Storage facade
+        $parsedUrl = parse_url($videoUrl);
+        $path = ltrim($parsedUrl['path'], '/');
+        
+        // Remove bucket name from path if present
+        if (strpos($path, 'hovervid/') === 0) {
+            $path = substr($path, 9); // Remove 'hovervid/' prefix
+        }
+        
+        // Use Storage facade with Wasabi credentials
+        if (\Illuminate\Support\Facades\Storage::disk('wasabi')->exists($path)) {
+            $fileContent = \Illuminate\Support\Facades\Storage::disk('wasabi')->get($path);
+            
+            return response($fileContent)
+                ->header('Content-Type', 'video/mp4')
+                ->header('Accept-Ranges', 'bytes')
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('Cache-Control', 'public, max-age=3600');
+        } else {
+            return response('Video not found', 404);
+        }
+            
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Video proxy error: ' . $e->getMessage());
+        return response('Error', 500);
+    }
 });
 
 // Fallback route for API 404s - must be at the end of the file

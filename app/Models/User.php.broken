@@ -1,0 +1,129 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use Tymon\JWTAuth\Contracts\JWTSubject;
+
+class User extends Authenticatable implements JWTSubject
+{
+    use HasFactory, Notifiable, HasApiTokens;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role',
+        'status',
+        'domain_id',
+        'is_suspended',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    /**
+     * Get the domains that belong to the user.
+     */
+    public function domains()
+    {
+        return $this->hasMany(Domain::class);
+    }
+
+    /**
+     * Get the user's primary domain.
+     */
+    public function domain()
+    /**
+     * Get the user's subscriptions.
+     */
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    {
+        return $this->belongsTo(Domain::class);
+    }
+
+    /**
+     * Get the identifier that will be stored in the subject claim of the JWT.
+     *
+     * @return mixed
+     */
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    /**
+     * Return a key value array, containing any custom claims to be added to the JWT.
+     *
+     * @return array
+     */
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
+
+    /**
+     * Get validation rules for creating a user
+     *
+     * @return array
+     */
+    public static function createRules(): array
+    {
+        return [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'sometimes|string|min:6',
+            'role' => 'sometimes|string|in:admin,client,manager',
+            'status' => 'sometimes|string|in:active,inactive,suspended,pending,banned',
+        ];
+    }
+
+    /**
+     * Get validation rules for updating a user
+     *
+     * @param int|null $userId
+     * @return array
+     */
+    public static function updateRules(?int $userId = null): array
+    {
+        return [
+            'name' => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . ($userId ?? 'NULL'),
+            'password' => 'sometimes|string|min:6',
+            'role' => 'sometimes|string|in:admin,client,manager',
+            'status' => 'sometimes|string|in:active,inactive,suspended,pending,banned',
+        ];
+    }
+} 

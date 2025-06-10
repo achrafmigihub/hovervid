@@ -57,6 +57,23 @@ return [
             'throw' => false,
         ],
 
+        'wasabi' => [
+            'driver' => 's3',
+            'key' => env('WASABI_ACCESS_KEY_ID'),
+            'secret' => env('WASABI_SECRET_ACCESS_KEY'),
+            'region' => env('WASABI_DEFAULT_REGION', 'ca-central-1'),
+            'bucket' => env('WASABI_BUCKET'),
+            'url' => env('WASABI_ENDPOINT', 'https://s3.ca-central-1.wasabisys.com'),
+            'endpoint' => env('WASABI_ENDPOINT', 'https://s3.ca-central-1.wasabisys.com'),
+            'use_path_style_endpoint' => false,
+            'visibility' => 'public',
+            'throw' => false,
+            'options' => [
+                'CacheControl' => 'public, max-age=31536000',
+                'ACL' => 'public-read',
+            ],
+        ],
+
     ],
 
     /*

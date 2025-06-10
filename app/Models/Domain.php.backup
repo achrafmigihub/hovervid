@@ -27,8 +27,8 @@ class Domain extends Model
         'domain',
         'platform',
         'plugin_status',
-        'status',
-        'is_active',
+        
+        
         'is_verified',
         'api_key',
         'verification_token',
@@ -42,7 +42,7 @@ class Domain extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'is_active' => 'boolean',
+        
         'is_verified' => 'boolean',
         'last_checked_at' => 'datetime',
         'created_at' => 'datetime',
@@ -57,8 +57,8 @@ class Domain extends Model
     protected $attributes = [
         'platform' => 'wordpress',
         'plugin_status' => 'inactive',
-        'status' => 'inactive',
-        'is_active' => false,
+        
+        
         'is_verified' => false,
     ];
 
@@ -75,7 +75,7 @@ class Domain extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('is_active', true)->where('status', 'active');
+        return $query->where( true)->where( 'active');
     }
 
     /**
@@ -109,21 +109,4 @@ class Domain extends Model
     {
         $this->verification_token = Str::random(32);
     }
-    
-    public function isReady(): bool 
-    { 
-        return $this->is_active && $this->is_verified; 
-    }
-    
-    public function deactivate(): bool 
-    { 
-        return $this->update(["is_active" => false, "status" => "inactive"]); 
-    }
-    
-    public function getUrlAttribute(): ?string 
-    { 
-        // Check if url attribute exists in the model's attributes
-        $url = $this->attributes['url'] ?? null;
-        return $url ?: ($this->domain ? "https://" . $this->domain : null); 
-    }
-}
+} 

@@ -33,11 +33,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const player = document.getElementById('slvp-player-container');
     const video = document.getElementById('slvp-video-player');
 
+    let state = {
+        isProcessing: false,
+        processedCount: 0,
+        processingQueue: [],
+        fingerprintsSent: false
+    };
+    
+    let currentTranslation = null;
+    
+    // Video availability cache
+    let videoAvailabilityCache = {};
+    let pendingVideoChecks = new Set();
+    
+    // Performance settings
     const PERFORMANCE_SETTINGS = {
-        batchSize: 50,
-        batchDelay: 100,
-        maxElements: 500,
-        throttleDelay: 250
+        batchSize: 20,
+        batchDelay: 50,
+        throttleDelay: 100,
+        maxElements: 1000
     };
 
     function fullReset() {
@@ -61,15 +75,6 @@ document.addEventListener('DOMContentLoaded', function() {
         currentTranslation = null;
         console.clear();
     }
-
-    const state = {
-        isPluginActive: false,
-        currentTranslation: null,
-        processingQueue: [],
-        isProcessing: false,
-        processedCount: 0,
-        fingerprintsSent: false
-    };
 
     let worker = null;
     let tesseractInitialized = false;
@@ -1015,7 +1020,148 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    let currentTranslation = null;
+    /**
+     * Check video availability for all text wrappers in batches
+     * This will update the UI to only show hover effects for content with videos
+     */
+    function checkVideoAvailabilityForAllContent() {
+        console.log('🎥 Checking video availability for all content...');
+        
+        const textWrappers = document.querySelectorAll('.slvp-text-wrapper[data-slvp-hash]:not([data-video-checked])');
+        
+        if (textWrappers.length === 0) {
+            console.log('📋 No new content to check for videos');
+            return;
+        }
+        
+        console.log(`📊 Found ${textWrappers.length} text wrappers to check`);
+        
+        // Extract hashes from all text wrappers
+        const contentHashes = [];
+        const hashToWrapperMap = {};
+        
+        textWrappers.forEach(wrapper => {
+            const hash = wrapper.getAttribute('data-slvp-hash');
+            if (hash && !videoAvailabilityCache.hasOwnProperty(hash) && !pendingVideoChecks.has(hash)) {
+                contentHashes.push(hash);
+                hashToWrapperMap[hash] = hashToWrapperMap[hash] || [];
+                hashToWrapperMap[hash].push(wrapper);
+                pendingVideoChecks.add(hash);
+                wrapper.setAttribute('data-video-checked', 'pending');
+            }
+        });
+        
+        if (contentHashes.length === 0) {
+            console.log('📋 All content already checked or pending');
+            return;
+        }
+        
+        console.log(`🔍 Checking video availability for ${contentHashes.length} unique content hashes...`);
+        console.log('🔍 Sample hashes:', contentHashes.slice(0, 5));
+        
+        console.log('📡 Making batch video check request to:', slvp_vars.ajax_url);
+        console.log('📦 Request data:', {
+            action: 'slvp_batch_check_videos',
+            content_hashes: JSON.stringify(contentHashes),
+            security: slvp_vars.ajax_nonce
+        });
+        
+        // Send batch request to check video availability
+        fetch(slvp_vars.ajax_url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'slvp_batch_check_videos',
+                content_hashes: JSON.stringify(contentHashes),
+                security: slvp_vars.ajax_nonce
+            })
+        })
+        .then(response => {
+            console.log('📨 Batch check response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📋 Batch check response data:', data);
+            
+            if (data.success && data.data.video_availability) {
+                console.log('✅ Video availability check complete');
+                
+                const videoAvailability = data.data.video_availability;
+                let availableCount = 0;
+                let unavailableCount = 0;
+                
+                // Update cache and UI for each hash
+                Object.keys(videoAvailability).forEach(hash => {
+                    const hasVideo = videoAvailability[hash];
+                    videoAvailabilityCache[hash] = hasVideo;
+                    pendingVideoChecks.delete(hash);
+                    
+                    if (hasVideo) {
+                        availableCount++;
+                    } else {
+                        unavailableCount++;
+                    }
+                    
+                    // Update all wrappers with this hash
+                    if (hashToWrapperMap[hash]) {
+                        hashToWrapperMap[hash].forEach(wrapper => {
+                            updateWrapperVideoStatus(wrapper, hasVideo);
+                        });
+                    }
+                });
+                
+                console.log(`📊 Video availability results: ${availableCount} with videos, ${unavailableCount} without videos`);
+                
+                // Force a style refresh
+                document.body.offsetHeight;
+                
+            } else {
+                console.warn('⚠️ Failed to check video availability:', data.data?.message || 'Unknown error');
+                console.warn('⚠️ Full response:', data);
+                
+                // Reset pending status for failed hashes
+                contentHashes.forEach(hash => {
+                    pendingVideoChecks.delete(hash);
+                    if (hashToWrapperMap[hash]) {
+                        hashToWrapperMap[hash].forEach(wrapper => {
+                            wrapper.removeAttribute('data-video-checked');
+                        });
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error checking video availability:', error);
+            
+            // Reset pending status for failed hashes
+            contentHashes.forEach(hash => {
+                pendingVideoChecks.delete(hash);
+                if (hashToWrapperMap[hash]) {
+                    hashToWrapperMap[hash].forEach(wrapper => {
+                        wrapper.removeAttribute('data-video-checked');
+                    });
+                }
+            });
+        });
+    }
+    
+    /**
+     * Update a text wrapper's video status and UI accordingly
+     */
+    function updateWrapperVideoStatus(wrapper, hasVideo) {
+        wrapper.setAttribute('data-video-checked', 'true');
+        wrapper.setAttribute('data-has-video', hasVideo ? 'true' : 'false');
+        
+        if (hasVideo) {
+            wrapper.classList.add('slvp-has-video');
+            console.log(`✅ Content "${wrapper.textContent.substring(0, 50)}..." has video available`);
+        } else {
+            wrapper.classList.add('slvp-no-video');
+            console.log(`❌ Content "${wrapper.textContent.substring(0, 50)}..." has no video`);
+        }
+    }
 
     function deactivateAllTranslations() {
         document.querySelectorAll('.slvp-text-wrapper').forEach(el => {
@@ -1025,9 +1171,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function sendTranslationRequest(textHash, wrapper) {
+        console.log('🎬 Sending translation request for hash:', textHash);
+        
+        // Check if this content has a video before trying to fetch it
+        const hasVideo = wrapper.getAttribute('data-has-video');
+        console.log('🎥 Content has video attribute:', hasVideo);
+        
+        if (hasVideo === 'false') {
+            console.warn('⚠️ Attempted to request video for content that has no video available');
+            console.warn('⚠️ This should not happen - hover effects should be disabled for this content');
+            handleError(wrapper);
+            return;
+        }
+        
+        if (hasVideo !== 'true') {
+            console.warn('⚠️ Video availability unknown for this content. Hash:', textHash);
+            console.warn('⚠️ Video availability check may not have completed yet');
+            // Could still try, but warn the user
+        }
+        
         deactivateAllTranslations();
         currentTranslation = wrapper;
         wrapper.classList.add('slvp-processing');
+        
+        console.log('📡 Making AJAX request to:', slvp_vars.ajax_url);
+        console.log('📦 Request data:', {
+            action: 'slvp_get_video',
+            text_hash: textHash,
+            security: slvp_vars.ajax_nonce
+        });
         
         fetch(slvp_vars.ajax_url, {
             method: 'POST',
@@ -1040,9 +1212,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 security: slvp_vars.ajax_nonce
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('📨 Response status:', response.status);
+            console.log('📨 Response headers:', response.headers);
+            return response.json();
+        })
         .then(data => {
+            console.log('📋 Response data:', data);
+            
             if (data.success && data.data.video_url) {
+                console.log('✅ Video URL received:', data.data.video_url);
                 loadVideo(data.data.video_url);
                 deactivateAllTranslations();
                 wrapper.classList.add('slvp-current-translation');
@@ -1057,17 +1236,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log(`Hash: ${fingerprintData.content_hash}`);
                 console.log('----------------------------');
             } else {
+                console.error('❌ Video request failed. Response:', data);
+                if (data.data && data.data.message) {
+                    console.error('❌ Error message:', data.data.message);
+                }
                 handleError(wrapper);
                 currentTranslation = null;
             }
         })
-        .catch(() => {
+        .catch(error => {
+            console.error('❌ Network or parsing error:', error);
             handleError(wrapper);
             currentTranslation = null;
         })
         .finally(() => {
             wrapper.classList.remove('slvp-processing');
-            wrapper.querySelector('.slvp-translate-icon').innerHTML = '';
+            const icon = wrapper.querySelector('.slvp-translate-icon');
+            if (icon) {
+                icon.innerHTML = '';
+            }
         });
     }
 
@@ -1091,14 +1278,41 @@ document.addEventListener('DOMContentLoaded', function() {
         const toggleButton = document.querySelector('.slvp-toggle-button');
 
         if (video && player) {
+            console.log('🎬 Loading video:', videoUrl);
+            
+            // Set crossorigin attribute to handle CORS
+            video.crossOrigin = 'anonymous';
+            
             video.innerHTML = `<source src="${videoUrl}" type="video/mp4">`;
             
             player.classList.add('slvp-visible');
             toggleButton.style.display = 'none';
 
             video.load();
+            
+            // Add error handling for video loading
+            video.addEventListener('error', function(e) {
+                console.error('❌ Video loading error:', e);
+                console.error('❌ Video error details:', video.error);
+                
+                // Try without crossorigin as fallback
+                if (video.crossOrigin) {
+                    console.log('🔄 Retrying video load without crossorigin...');
+                    video.crossOrigin = null;
+                    video.load();
+                }
+            }, { once: true });
+            
+            video.addEventListener('loadstart', function() {
+                console.log('🎬 Video loading started');
+            }, { once: true });
+            
+            video.addEventListener('canplaythrough', function() {
+                console.log('✅ Video ready to play');
+            }, { once: true });
+            
             video.play().catch(error => {
-                console.log('Video autoplay failed:', error);
+                console.log('⚠️ Video autoplay failed (this is normal):', error);
             });
 
             // Remove any existing event listeners
@@ -1167,6 +1381,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 console.log('%c 🔍 Text Fingerprint Scan Results:', 'background: #4a90e2; color: white; padding: 2px 5px; border-radius: 3px;');
                 scanFingerprints();
+                
+                // Check video availability after text processing is complete
+                setTimeout(() => {
+                    console.log('%c 🎥 Starting Video Availability Check:', 'background: #e74c3c; color: white; padding: 2px 5px; border-radius: 3px;');
+                    console.log('🔍 Text wrappers found:', document.querySelectorAll('.slvp-text-wrapper[data-slvp-hash]').length);
+                    console.log('🔍 Unchecked wrappers:', document.querySelectorAll('.slvp-text-wrapper[data-slvp-hash]:not([data-video-checked])').length);
+                    checkVideoAvailabilityForAllContent();
+                }, 500);
             }
         }, 1000);
     }
@@ -1184,6 +1406,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (addedNodes.length > 0) {
             requestAnimationFrame(() => {
                 processBatch(addedNodes);
+                
+                // Check video availability for any new content after a short delay
+                setTimeout(() => {
+                    checkVideoAvailabilityForAllContent();
+                }, 1000);
             });
         }
     }, PERFORMANCE_SETTINGS.throttleDelay)).observe(document.body, { childList: true, subtree: true });
@@ -1222,6 +1449,32 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('🔄 Force sending fingerprints...');
             sendFingerprintData();
         },
+        // Video availability functions
+        checkVideoAvailability: checkVideoAvailabilityForAllContent,
+        getVideoAvailabilityCache: function() {
+            return {
+                cache: videoAvailabilityCache,
+                pending: Array.from(pendingVideoChecks),
+                stats: {
+                    totalCached: Object.keys(videoAvailabilityCache).length,
+                    withVideos: Object.values(videoAvailabilityCache).filter(Boolean).length,
+                    withoutVideos: Object.values(videoAvailabilityCache).filter(v => !v).length,
+                    pending: pendingVideoChecks.size
+                }
+            };
+        },
+        clearVideoCache: function() {
+            videoAvailabilityCache = {};
+            pendingVideoChecks.clear();
+            console.log('🧹 Video availability cache cleared');
+            
+            // Reset all wrapper video status
+            document.querySelectorAll('.slvp-text-wrapper[data-video-checked], .slvp-combined[data-video-checked]').forEach(wrapper => {
+                wrapper.removeAttribute('data-video-checked');
+                wrapper.removeAttribute('data-has-video');
+                wrapper.classList.remove('slvp-has-video', 'slvp-no-video');
+            });
+        },
         testPageName: function() {
             console.log('🧪 Testing page name extraction...');
             const pageName = getPageName();
@@ -1245,6 +1498,165 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             return elements.length;
+        },
+        debugVideoAvailability: function() {
+            console.log('🎥 Debugging video availability...');
+            const wrappers = document.querySelectorAll('.slvp-text-wrapper, .slvp-combined');
+            let withVideo = 0, withoutVideo = 0, pending = 0, unchecked = 0;
+            
+            wrappers.forEach(wrapper => {
+                const hasVideo = wrapper.getAttribute('data-has-video');
+                const checked = wrapper.getAttribute('data-video-checked');
+                
+                if (checked === 'pending') {
+                    pending++;
+                } else if (hasVideo === 'true') {
+                    withVideo++;
+                } else if (hasVideo === 'false') {
+                    withoutVideo++;
+                } else {
+                    unchecked++;
+                }
+            });
+            
+            console.log(`📊 Video availability stats:`);
+            console.log(`   ✅ With videos: ${withVideo}`);
+            console.log(`   ❌ Without videos: ${withoutVideo}`);
+            console.log(`   ⏳ Pending: ${pending}`);
+            console.log(`   ❓ Unchecked: ${unchecked}`);
+            
+            return { withVideo, withoutVideo, pending, unchecked };
+        },
+        // Debug API connectivity
+        testApiConnectivity: function() {
+            console.log('🔧 Testing API connectivity...');
+            console.log('📡 AJAX URL:', slvp_vars.ajax_url);
+            console.log('🔑 Nonce:', slvp_vars.ajax_nonce);
+            
+            // Test WordPress AJAX endpoint
+            fetch(slvp_vars.ajax_url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'slvp_check_domain',
+                    security: slvp_vars.ajax_nonce
+                })
+            })
+            .then(response => {
+                console.log('📨 WordPress AJAX response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('✅ WordPress AJAX working. Response:', data);
+                
+                // If WordPress AJAX works, test the Laravel API indirectly
+                if (data.success) {
+                    console.log('🎯 WordPress API is working. Domain status:', data.data);
+                } else {
+                    console.warn('⚠️ WordPress API responded but with error:', data.data?.message);
+                }
+            })
+            .catch(error => {
+                console.error('❌ WordPress AJAX test failed:', error);
+            });
+        },
+        // Force video availability check
+        forceVideoCheck: function() {
+            console.log('🔄 Forcing video availability check...');
+            
+            // Clear cache and reset all wrappers
+            videoAvailabilityCache = {};
+            pendingVideoChecks.clear();
+            
+            // Reset all wrapper video status
+            document.querySelectorAll('.slvp-text-wrapper[data-video-checked], .slvp-combined[data-video-checked]').forEach(wrapper => {
+                wrapper.removeAttribute('data-video-checked');
+                wrapper.removeAttribute('data-has-video');
+                wrapper.classList.remove('slvp-has-video', 'slvp-no-video');
+            });
+            
+            // Force check
+            checkVideoAvailabilityForAllContent();
+        },
+        // Test with a dummy video check
+        testVideoCheck: function() {
+            console.log('🎬 Testing video check with dummy hash...');
+            
+            fetch(slvp_vars.ajax_url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'slvp_batch_check_videos',
+                    content_hashes: JSON.stringify(['test123', 'test456']),
+                    security: slvp_vars.ajax_nonce
+                })
+            })
+            .then(response => {
+                console.log('📨 Video check response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('📋 Video check response:', data);
+                
+                if (data.success) {
+                    console.log('✅ Video check API is working');
+                } else {
+                    console.warn('⚠️ Video check API error:', data.data?.message);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Video check test failed:', error);
+            });
+        },
+        // Comprehensive debug function
+        fullDebug: function() {
+            console.log('🔧 === FULL DEBUG REPORT ===');
+            console.log('📡 AJAX URL:', slvp_vars.ajax_url);
+            console.log('🔑 Nonce:', slvp_vars.ajax_nonce);
+            console.log('🌐 Domain:', slvp_vars.domain || window.location.hostname);
+            console.log('📦 Plugin URL:', slvp_vars.plugin_url);
+            
+            // Test WordPress AJAX with debug endpoint
+            fetch(slvp_vars.ajax_url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'slvp_debug_api',
+                    security: slvp_vars.ajax_nonce
+                })
+            })
+            .then(response => {
+                console.log('📨 Debug API response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('📋 Debug API response:', data);
+                
+                if (data.success) {
+                    console.log('✅ WordPress AJAX is working');
+                    console.log('🔧 Debug info:', data.data.debug_info);
+                    console.log('🔗 Connectivity test:', data.data.connectivity_test);
+                    console.log('🌐 Current domain:', data.data.current_domain);
+                    
+                    if (data.data.connectivity_test) {
+                        console.log('✅ Laravel API connectivity: WORKING');
+                    } else {
+                        console.error('❌ Laravel API connectivity: FAILED');
+                        console.log('🔧 API URL being used:', data.data.debug_info?.api_base_url);
+                    }
+                } else {
+                    console.warn('⚠️ WordPress AJAX error:', data.data?.message);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Debug API test failed:', error);
+            });
         }
     };
 
@@ -1460,11 +1872,34 @@ document.addEventListener('DOMContentLoaded', function() {
             display: inline-block;
         }
         
+        /* Only show hover effects for content with videos */
+        .slvp-text-wrapper[data-has-video="false"] {
+            pointer-events: none !important;
+        }
+        
+        .slvp-text-wrapper[data-has-video="false"] .slvp-translate-icon {
+            display: none !important;
+        }
+        
+        /* Pending video check status */
+        .slvp-text-wrapper[data-video-checked="pending"] .slvp-translate-icon {
+            opacity: 0.3;
+        }
+        
         .slvp-combined {
             position: relative;
             display: inline-block;
             padding: 0;
             margin: 0;
+        }
+        
+        /* Only show hover effects for combined content with videos */
+        .slvp-combined[data-has-video="false"] {
+            pointer-events: none !important;
+        }
+        
+        .slvp-combined[data-has-video="false"] .slvp-translate-icon {
+            display: none !important;
         }
         
         .slvp-content-wrapper {
@@ -1495,7 +1930,12 @@ document.addEventListener('DOMContentLoaded', function() {
             display: none;
         }
         
-        body.slvp-active .slvp-combined:hover > .slvp-translate-icon {
+        /* Only show icons on hover for content with videos */
+        body.slvp-active .slvp-combined[data-has-video="true"]:hover > .slvp-translate-icon {
+            display: inline-block !important;
+        }
+        
+        body.slvp-active .slvp-text-wrapper[data-has-video="true"]:hover > .slvp-translate-icon {
             display: inline-block !important;
         }
         
@@ -1520,10 +1960,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .slvp-combined .slvp-link-part .slvp-translate-icon,
         .slvp-combined .slvp-link-part a .slvp-translate-icon {
             display: none !important;
-        }
-        
-        body.slvp-active .slvp-text-wrapper:hover > .slvp-translate-icon {
-            display: inline-block !important;
         }
         
         .slvp-text-wrapper .slvp-translate-icon {
@@ -1553,6 +1989,23 @@ document.addEventListener('DOMContentLoaded', function() {
         
         .slvp-combined * .slvp-translate-icon {
             display: none !important;
+        }
+        
+        /* Hide content without videos from showing any hover effects */
+        body.slvp-active .slvp-text-wrapper[data-has-video="false"]:hover,
+        body.slvp-active .slvp-combined[data-has-video="false"]:hover {
+            outline: none !important;
+            border: none !important;
+            background: transparent !important;
+        }
+        
+        /* Show loading state for pending video checks */
+        .slvp-text-wrapper[data-video-checked="pending"] {
+            opacity: 0.7;
+        }
+        
+        .slvp-combined[data-video-checked="pending"] {
+            opacity: 0.7;
         }
     `;
     

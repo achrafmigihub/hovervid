@@ -145,7 +145,7 @@
           </VChip>
         </template>
 
-        <!-- Verification Status -->
+        <!-- Verification Status with Enable/Disable buttons -->
         <template #item.is_verified="{ item }">
           <VChip
             :color="item.is_verified ? 'success' : 'warning'"
@@ -153,7 +153,7 @@
             label
             class="text-capitalize"
           >
-            {{ item.is_verified ? 'Verified' : 'Unverified' }}
+            {{ item.is_verified ? 'Enabled' : 'Disabled' }}
           </VChip>
         </template>
 
@@ -209,6 +209,30 @@
             Deactivate
           </VBtn>
 
+          <VBtn 
+            v-if="!item.is_verified"
+            color="success" 
+            size="small" 
+            variant="tonal"
+            :loading="verifying === item.id"
+            @click="enableDomain(item.id)"
+            class="ml-2"
+          >
+            Enable
+          </VBtn>
+          
+          <VBtn 
+            v-else
+            color="warning" 
+            size="small" 
+            variant="tonal"
+            :loading="unverifying === item.id"
+            @click="disableDomain(item.id)"
+            class="ml-2"
+          >
+            Disable
+          </VBtn>
+
           <IconBtn @click="confirmDeleteDomain(item.id)" class="ml-2">
             <VIcon icon="bx-trash" />
           </IconBtn>
@@ -231,13 +255,7 @@
                   </template>
                   <VListItemTitle>Renew License</VListItemTitle>
                 </VListItem>
-                <VListItem v-if="!item.is_verified" @click="verifyDomain(item.id)">
-                  <template #prepend>
-                    <VIcon icon="bx-check-circle" />
-                  </template>
-                  <VListItemTitle>Verify Domain</VListItemTitle>
-                </VListItem>
-                <VListItem v-if="item.is_verified" @click="viewPlugin(item.id)">
+                <VListItem @click="viewPlugin(item.id)">
                   <template #prepend>
                     <VIcon icon="bx-plugin" />
                   </template>
@@ -320,6 +338,12 @@
         </VBtn>
       </template>
     </VSnackbar>
+
+    <!-- Add New Domain Drawer -->
+    <AddNewDomainDrawer
+      v-model:is-drawer-open="isAddNewDomainDrawerVisible"
+      @domain-data="addNewDomain"
+    />
   </section>
 </template>
 
@@ -327,6 +351,7 @@
 import { format, isAfter, parseISO, subDays } from 'date-fns'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import AddNewDomainDrawer from '@/views/AddNewDomainDrawer.vue'
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -336,6 +361,8 @@ const fetchError = ref(null)
 // Action status trackers
 const activating = ref(null)
 const deactivating = ref(null)
+const verifying = ref(null)
+const unverifying = ref(null)
 
 // Data table options
 const itemsPerPage = ref(10)
@@ -362,7 +389,7 @@ const headers = [
     key: 'status',
   },
   {
-    title: 'Verification',
+    title: 'Enable/Disable',
     key: 'is_verified',
   },
   {
@@ -709,20 +736,30 @@ const renewDomain = (domainId) => {
   }
 }
 
-// Function to verify domain
-const verifyDomain = async (domainId) => {
+// Function to view plugin status
+const viewPlugin = (domainId) => {
+  const domain = domains.value.find(d => d.id === domainId)
+  if (domain) {
+    // Implementation would navigate to plugin status page
+    console.log('View plugin status for domain:', domain)
+    snackbarColor.value = 'info'
+    snackbarText.value = `Viewing plugin status for ${domain.domain}`
+    snackbar.value = true
+  }
+}
+
+// Function to enable domain
+const enableDomain = async (domainId) => {
   try {
-    isLoading.value = true
+    verifying.value = domainId
     
-    const domain = domains.value.find(d => d.id === domainId)
-    if (!domain) return
-    
-    // Call verification API
-    const response = await fetch(`/api/domains/${domainId}/verify`, {
+    // Call API to enable domain using admin endpoint
+    const response = await fetch(`/api/admin/domains/${domainId}/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     })
     
@@ -733,38 +770,157 @@ const verifyDomain = async (domainId) => {
     const data = await response.json()
     
     if (data.success) {
-      // Update domain verification status
-      domain.is_verified = true
+      // Update the domain status in our local data
+      const domain = domains.value.find(d => d.id === domainId)
+      if (domain) {
+        domain.is_verified = true
+      }
       
       // Show success message
       snackbarColor.value = 'success'
-      snackbarText.value = `Domain ${domain.domain} verified successfully!`
+      snackbarText.value = 'Domain enabled successfully!'
       snackbar.value = true
     } else {
       // Show error message
       snackbarColor.value = 'error'
-      snackbarText.value = `Failed to verify domain: ${data.message}`
+      snackbarText.value = `Failed to enable domain: ${data.message}`
       snackbar.value = true
     }
   } catch (error) {
-    console.error('Error verifying domain:', error)
+    console.error('Error enabling domain:', error)
+    snackbarColor.value = 'error'
+    snackbarText.value = `Error: ${error.message}`
+    snackbar.value = true
+  } finally {
+    verifying.value = null
+  }
+}
+
+// Function to disable domain
+const disableDomain = async (domainId) => {
+  try {
+    unverifying.value = domainId
+    
+    // Call API to disable domain using admin endpoint
+    const response = await fetch(`/api/admin/domains/${domainId}/unverify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    
+    if (data.success) {
+      // Update the domain status in our local data
+      const domain = domains.value.find(d => d.id === domainId)
+      if (domain) {
+        domain.is_verified = false
+      }
+      
+      // Show success message
+      snackbarColor.value = 'success'
+      snackbarText.value = 'Domain disabled successfully!'
+      snackbar.value = true
+    } else {
+      // Show error message
+      snackbarColor.value = 'error'
+      snackbarText.value = `Failed to disable domain: ${data.message}`
+      snackbar.value = true
+    }
+  } catch (error) {
+    console.error('Error disabling domain:', error)
+    snackbarColor.value = 'error'
+    snackbarText.value = `Error: ${error.message}`
+    snackbar.value = true
+  } finally {
+    unverifying.value = null
+  }
+}
+
+// Function to add new domain
+const addNewDomain = async (domainData) => {
+  try {
+    isLoading.value = true
+    console.log('Adding new domain:', domainData)
+    
+    // First, check if the user email exists in our system
+    const userCheckResponse = await fetch(`/api/admin/user-lookup?search=${encodeURIComponent(domainData.user_email)}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    
+    if (!userCheckResponse.ok) {
+      throw new Error(`Failed to verify user email`)
+    }
+    
+    const userCheckData = await userCheckResponse.json()
+    
+    // Find the user with exact email match
+    const user = userCheckData.data?.find(u => u.email.toLowerCase() === domainData.user_email.toLowerCase())
+    
+    if (!user) {
+      // Show error message if user email not found
+      snackbarColor.value = 'error'
+      snackbarText.value = `User with email "${domainData.user_email}" not found in the system. Please ensure the user is registered first.`
+      snackbar.value = true
+      return
+    }
+    
+    // If user exists, create domain with user_id
+    const domainPayload = {
+      domain: domainData.domain,
+      user_id: user.id, // Use the found user's ID
+      platform: domainData.platform,
+      is_verified: domainData.is_verified,
+    }
+    
+    // Call API to create domain using admin endpoint
+    const response = await fetch('/api/admin/domains', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify(domainPayload)
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    
+    if (data.success) {
+      // Show success message
+      snackbarColor.value = 'success'
+      snackbarText.value = `Domain ${domainData.domain} created successfully for ${user.name} (${user.email})!`
+      snackbar.value = true
+      
+      // Refetch domains list
+      fetchDomains()
+    } else {
+      // Show error message
+      snackbarColor.value = 'error'
+      snackbarText.value = `Failed to create domain: ${data.message}`
+      snackbar.value = true
+    }
+  } catch (error) {
+    console.error('Error adding domain:', error)
     snackbarColor.value = 'error'
     snackbarText.value = `Error: ${error.message}`
     snackbar.value = true
   } finally {
     isLoading.value = false
-  }
-}
-
-// Function to view plugin status
-const viewPlugin = (domainId) => {
-  const domain = domains.value.find(d => d.id === domainId)
-  if (domain) {
-    // Implementation would navigate to plugin status page
-    console.log('View plugin status for domain:', domain)
-    snackbarColor.value = 'info'
-    snackbarText.value = `Viewing plugin status for ${domain.domain}`
-    snackbar.value = true
   }
 }
 

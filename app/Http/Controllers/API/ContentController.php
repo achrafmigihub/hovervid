@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class ContentController extends Controller
 {
@@ -415,9 +416,262 @@ class ContentController extends Controller
     public function uploadVideo(Request $request, string $contentId): JsonResponse
     {
         try {
+            Log::info('=== VIDEO UPLOAD DEBUG START ===', [
+                'content_id' => $contentId,
+                'user_id' => Auth::id(),
+                'request_data' => [
+                    'has_file' => $request->hasFile('video'),
+                    'file_count' => $request->allFiles() ? count($request->allFiles()) : 0,
+                    'request_size' => $request->header('Content-Length'),
+                ]
+            ]);
+            
             $user = Auth::user();
             
             if (!$user) {
+                Log::warning('Upload attempt without authentication', ['content_id' => $contentId]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required'
+                ], 401);
+            }
+
+            Log::info('User authenticated for upload', [
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+                'content_id' => $contentId
+            ]);
+
+            // Validate the request
+            $validator = Validator::make($request->all(), [
+                'video' => 'required|file|mimes:mp4,avi,mov,wmv,flv,webm|max:10240' // 10MB max
+            ]);
+
+            if ($validator->fails()) {
+                Log::error('Video upload validation failed', [
+                    'user_id' => $user->id,
+                    'content_id' => $contentId,
+                    'errors' => $validator->errors()->toArray(),
+                    'has_file' => $request->hasFile('video'),
+                    'files' => $request->allFiles()
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            Log::info('Validation passed', ['user_id' => $user->id, 'content_id' => $contentId]);
+
+            // Find the content item that belongs to the logged-in user
+            $content = Content::where('id', $contentId)
+                             ->where('user_id', $user->id)
+                             ->first();
+
+            if (!$content) {
+                Log::error('Content not found or permission denied', [
+                    'user_id' => $user->id,
+                    'content_id' => $contentId,
+                    'content_exists' => Content::where('id', $contentId)->exists(),
+                    'user_content_count' => Content::where('user_id', $user->id)->count()
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Content not found or you do not have permission to upload video for this content'
+                ], 404);
+            }
+
+            Log::info('Content found', [
+                'user_id' => $user->id,
+                'content_id' => $contentId,
+                'current_video_url' => $content->video_url
+            ]);
+
+            // Generate unique filename to prevent conflicts
+            $videoFile = $request->file('video');
+            $extension = $videoFile->getClientOriginalExtension();
+            $uniqueFileName = 'video_' . uniqid() . '_' . time() . '_' . $contentId . '.' . $extension;
+            
+            Log::info('File details', [
+                'original_name' => $videoFile->getClientOriginalName(),
+                'size' => $videoFile->getSize(),
+                'mime_type' => $videoFile->getMimeType(),
+                'extension' => $extension,
+                'unique_filename' => $uniqueFileName
+            ]);
+            
+            // Upload to Wasabi in user-specific folder
+            $path = 'videos/' . $user->id . '/' . $uniqueFileName;
+            
+            Log::info('Starting Wasabi upload', [
+                'path' => $path,
+                'disk' => 'wasabi',
+                'wasabi_config' => [
+                    'endpoint' => config('filesystems.disks.wasabi.endpoint'),
+                    'bucket' => config('filesystems.disks.wasabi.bucket'),
+                    'region' => config('filesystems.disks.wasabi.region'),
+                    'key_set' => !empty(config('filesystems.disks.wasabi.key')),
+                    'secret_set' => !empty(config('filesystems.disks.wasabi.secret'))
+                ]
+            ]);
+            
+            // Upload the file to Wasabi
+            $uploaded = Storage::disk('wasabi')->put($path, file_get_contents($videoFile), 'public');
+            
+            Log::info('Wasabi upload result', [
+                'uploaded' => $uploaded,
+                'path' => $path
+            ]);
+            
+            if (!$uploaded) {
+                Log::error('Wasabi upload failed', [
+                    'path' => $path,
+                    'user_id' => $user->id,
+                    'content_id' => $contentId
+                ]);
+                throw new \Exception('Failed to upload video to Wasabi storage');
+            }
+
+            // Generate the public URL for the video
+            $wasabiEndpoint = env('WASABI_ENDPOINT', 'https://s3.wasabisys.com');
+            $wasabiBucket = env('WASABI_BUCKET');
+            $videoUrl = $wasabiEndpoint . '/' . $wasabiBucket . '/' . $path;
+            
+            Log::info('Generated video URL', [
+                'video_url' => $videoUrl,
+                'endpoint' => $wasabiEndpoint,
+                'bucket' => $wasabiBucket,
+                'path' => $path
+            ]);
+            
+            // Update content with video URL
+            $content->video_url = $videoUrl;
+            $content->save();
+
+            Log::info('Video uploaded to Wasabi for content', [
+                'user_id' => $user->id,
+                'content_id' => $contentId,
+                'wasabi_path' => $path,
+                'video_url' => $videoUrl,
+                'content_updated' => true
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Video uploaded successfully to Wasabi storage',
+                'data' => [
+                    'content_id' => $contentId,
+                    'video_url' => $videoUrl,
+                    'file_path' => $path
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Video upload to Wasabi error: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'content_id' => $contentId,
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while uploading video to cloud storage',
+                'debug' => app()->environment('local') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get video URL for a specific content item (used by plugin)
+     *
+     * @param Request $request
+     * @param string $contentId
+     * @return JsonResponse
+     */
+    public function getContentVideo(Request $request, string $contentId): JsonResponse
+    {
+        try {
+            $domainName = $request->query('domain_name');
+
+            if (!$domainName) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Missing domain_name parameter'
+                ], 400);
+            }
+
+            // Find the content item for the specified domain
+            $content = Content::select('content.id', 'content.video_url', 'content.text', 'content.context')
+                             ->join('domains', 'content.domain_id', '=', 'domains.id')
+                             ->where('content.id', $contentId)
+                             ->where('domains.domain', $domainName)
+                             ->first();
+
+            if (!$content) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Content not found for this domain'
+                ], 404);
+            }
+
+            // Check if content has a video
+            if (empty($content->video_url)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No video available for this content',
+                    'has_video' => false
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'content_id' => $content->id,
+                    'video_url' => $content->video_url,
+                    'text' => $content->text,
+                    'context' => $content->context,
+                    'has_video' => true
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Content video retrieval error: ' . $e->getMessage(), [
+                'content_id' => $contentId,
+                'domain_name' => $request->query('domain_name')
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while retrieving video'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update content with video URL (for direct uploads)
+     *
+     * @param Request $request
+     * @param string $contentId
+     * @return JsonResponse
+     */
+    public function updateVideoUrl(Request $request, string $contentId): JsonResponse
+    {
+        try {
+            Log::info('=== UPDATE VIDEO URL DEBUG START ===', [
+                'content_id' => $contentId,
+                'user_id' => Auth::id(),
+                'request_data' => $request->all()
+            ]);
+            
+            $user = Auth::user();
+            
+            if (!$user) {
+                Log::warning('Update video URL attempt without authentication', ['content_id' => $contentId]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Authentication required'
@@ -426,10 +680,17 @@ class ContentController extends Controller
 
             // Validate the request
             $validator = Validator::make($request->all(), [
-                'video' => 'required|file|mimes:mp4,avi,mov,wmv,flv,webm|max:102400' // 100MB max
+                'video_url' => 'required|url',
+                'file_path' => 'required|string'
             ]);
 
             if ($validator->fails()) {
+                Log::error('Video URL update validation failed', [
+                    'user_id' => $user->id,
+                    'content_id' => $contentId,
+                    'errors' => $validator->errors()->toArray()
+                ]);
+                
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
@@ -443,47 +704,51 @@ class ContentController extends Controller
                              ->first();
 
             if (!$content) {
+                Log::error('Content not found for video URL update', [
+                    'user_id' => $user->id,
+                    'content_id' => $contentId
+                ]);
+                
                 return response()->json([
                     'success' => false,
-                    'message' => 'Content not found or you do not have permission to upload video for this content'
+                    'message' => 'Content not found or you do not have permission to update this content'
                 ], 404);
             }
 
-            // Handle file upload
-            $videoFile = $request->file('video');
-            $fileName = time() . '_' . $contentId . '.' . $videoFile->getClientOriginalExtension();
-            
-            // Store the file in the public/videos directory
-            $videoPath = $videoFile->storeAs('videos', $fileName, 'public');
+            $videoUrl = $request->input('video_url');
+            $filePath = $request->input('file_path');
             
             // Update content with video URL
-            $content->video_url = '/storage/' . $videoPath;
+            $content->video_url = $videoUrl;
             $content->save();
 
-            Log::info('Video uploaded for content', [
+            Log::info('Video URL updated for content', [
                 'user_id' => $user->id,
                 'content_id' => $contentId,
-                'video_path' => $videoPath
+                'video_url' => $videoUrl,
+                'file_path' => $filePath
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Video uploaded successfully',
+                'message' => 'Video URL updated successfully',
                 'data' => [
                     'content_id' => $contentId,
-                    'video_url' => $content->video_url
+                    'video_url' => $videoUrl,
+                    'file_path' => $filePath
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Video upload error: ' . $e->getMessage(), [
+            Log::error('Video URL update error: ' . $e->getMessage(), [
                 'user_id' => Auth::id(),
-                'content_id' => $contentId
+                'content_id' => $contentId,
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred while uploading video'
+                'message' => 'An error occurred while updating video URL'
             ], 500);
         }
     }

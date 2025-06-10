@@ -117,8 +117,20 @@ register_activation_hook(__FILE__, 'slvp_activate_plugin');
  * Display activation error message and handle its dismissal
  */
 function slvp_activation_error_notice() {
-    // Standard WordPress error transient
+    // Check if we have error transients
     if ($message = get_transient('hovervid_activation_error')) {
+        // Before showing the error, check if domain is now verified
+        $domain_status = slvp_check_domain_authorization();
+        
+        // If domain is now verified and active, clear the error transients
+        if ($domain_status['is_active'] && $domain_status['domain_exists']) {
+            delete_transient('hovervid_activation_error');
+            delete_transient('hovervid_error_type');
+            // Remove any deactivation flag since plugin should work now
+            delete_option('hovervid_needs_deactivation');
+            return; // Don't show error message
+        }
+        
         $error_type = get_transient('hovervid_error_type') ?: 'domain_not_found';
         
         if ($error_type === 'domain_disabled') {
@@ -264,6 +276,8 @@ add_action('admin_notices', 'slvp_activation_error_notice');
 function slvp_dismiss_notice_handler() {
     delete_transient('hovervid_activation_error');
     delete_transient('hovervid_error_type');
+    // Also clear the deactivation flag when notice is dismissed
+    delete_option('hovervid_needs_deactivation');
     wp_die();
 }
 add_action('wp_ajax_hovervid_dismiss_notice', 'slvp_dismiss_notice_handler');
@@ -386,3 +400,147 @@ if (is_admin()) {
 
 // Initialize plugin
 add_action('plugins_loaded', 'slvp_init');
+
+/**
+ * Continuous domain verification check - shows notices when domain is not verified
+ * This runs on every admin page load to check domain status
+ */
+function slvp_continuous_domain_check() {
+    // Skip if we already have an activation error showing
+    if (get_transient('hovervid_activation_error')) {
+        return;
+    }
+    
+    // Check if user has dismissed the notice recently (don't spam them)
+    if (get_transient('hovervid_notice_dismissed')) {
+        return;
+    }
+    
+    // Check domain status
+    $domain_status = slvp_check_domain_authorization();
+    
+    // If domain exists but is not verified, show warning
+    if ($domain_status['domain_exists'] && !$domain_status['is_active']) {
+        $current_domain = $_SERVER['HTTP_HOST'] ?? '';
+        $message = $domain_status['message'] ?: "Your HoverVid plugin for domain '{$current_domain}' is currently disabled. Your subscription may have expired or your account may be suspended.";
+        
+        ?>
+        <div class="notice notice-warning is-dismissible" id="hovervid-verification-notice" style="padding: 20px; border-left: 4px solid #f39c12;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 32px;">⚠️</div>
+                <div style="flex: 1;">
+                    <h3 style="margin: 0 0 10px 0; color: #8a6d3b;">HoverVid Plugin - Service Disabled</h3>
+                    <p style="margin: 0 0 15px 0;"><strong><?php echo esc_html($message); ?></strong></p>
+                    <p style="margin: 0 0 15px 0;">Please contact our support team to resolve this issue and reactivate your plugin.</p>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <a href="#" class="button button-primary" id="hovervid-support-btn-continuous" style="background: #10b981; border: none; color: white; text-decoration: none;">
+                            📞 Contact Support
+                        </a>
+                        <a href="#" class="button button-secondary" id="hovervid-dashboard-btn-continuous">
+                            🏠 Go to Dashboard
+                        </a>
+                        <button type="button" class="button button-secondary" id="hovervid-dismiss-btn-continuous">
+                            ⏰ Remind Me Later
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            jQuery(document).ready(function($) {
+                // Get API base URL using the same logic as the API client
+                var apiBaseUrl = 'http://localhost:8000'; // Default to Laravel local development
+                
+                // Use the same detection logic as the API client
+                var serverName = window.location.hostname;
+                if (serverName.includes('localhost') || serverName.includes('127.0.0.1') || serverName.includes('.local')) {
+                    // Local development (including .local domains)
+                    apiBaseUrl = 'http://localhost:8000';
+                } else {
+                    // Production - UPDATE THIS to your actual Laravel domain
+                    apiBaseUrl = 'http://localhost:8000'; // Change this to your production Laravel URL when deploying
+                }
+                
+                var currentDomain = window.location.hostname;
+                
+                // Set up support and dashboard buttons
+                $('#hovervid-support-btn-continuous').attr('href', apiBaseUrl + '/support?domain=' + encodeURIComponent(currentDomain) + '&source=plugin');
+                $('#hovervid-dashboard-btn-continuous').attr('href', apiBaseUrl + '/login?domain=' + encodeURIComponent(currentDomain) + '&source=plugin');
+                
+                // Add click tracking
+                $('#hovervid-support-btn-continuous').on('click', function() {
+                    console.log('HoverVid: Support button clicked for domain:', currentDomain);
+                    console.log('HoverVid: Redirecting to:', this.href);
+                });
+                
+                $('#hovervid-dashboard-btn-continuous').on('click', function() {
+                    console.log('HoverVid: Dashboard button clicked for domain:', currentDomain);
+                    console.log('HoverVid: Redirecting to:', this.href);
+                });
+                
+                // Handle dismiss button
+                $('#hovervid-dismiss-btn-continuous').on('click', function() {
+                    $.ajax({
+                        url: ajaxurl,
+                        data: {
+                            action: 'hovervid_dismiss_verification_notice'
+                        },
+                        success: function() {
+                            $('#hovervid-verification-notice').fadeOut();
+                        }
+                    });
+                });
+                
+                // Handle X button dismiss
+                $('#hovervid-verification-notice .notice-dismiss').on('click', function() {
+                    $.ajax({
+                        url: ajaxurl,
+                        data: {
+                            action: 'hovervid_dismiss_verification_notice'
+                        }
+                    });
+                });
+            });
+        </script>
+        <?php
+    }
+}
+add_action('admin_notices', 'slvp_continuous_domain_check');
+
+/**
+ * AJAX handler for dismissing verification notice
+ * Sets a transient to not show notice for 24 hours
+ */
+function slvp_dismiss_verification_notice_handler() {
+    // Set transient for 24 hours (86400 seconds)
+    set_transient('hovervid_notice_dismissed', true, 86400);
+    wp_die();
+}
+add_action('wp_ajax_hovervid_dismiss_verification_notice', 'slvp_dismiss_verification_notice_handler');
+
+/**
+ * Debug function to check domain status (for testing)
+ * Add ?hovervid_debug=1 to any admin URL to see debug info
+ */
+function slvp_debug_domain_status() {
+    if (isset($_GET['hovervid_debug']) && $_GET['hovervid_debug'] == '1' && is_admin()) {
+        $domain_status = slvp_check_domain_authorization();
+        $current_domain = $_SERVER['HTTP_HOST'] ?? '';
+        
+        echo '<div class="notice notice-info" style="padding: 20px; background: #f0f0f0; border: 2px solid #0073aa; margin: 20px 0;">';
+        echo '<h3>HoverVid Plugin Debug Info</h3>';
+        echo '<p><strong>Current Domain:</strong> ' . esc_html($current_domain) . '</p>';
+        echo '<p><strong>Domain Exists:</strong> ' . ($domain_status['domain_exists'] ? 'Yes' : 'No') . '</p>';
+        echo '<p><strong>Is Active:</strong> ' . ($domain_status['is_active'] ? 'Yes' : 'No') . '</p>';
+        echo '<p><strong>Message:</strong> ' . esc_html($domain_status['message']) . '</p>';
+        echo '<p><strong>Should Show Notice:</strong> ' . ($domain_status['domain_exists'] && !$domain_status['is_active'] ? 'Yes' : 'No') . '</p>';
+        echo '<p><strong>Has Activation Error:</strong> ' . (get_transient('hovervid_activation_error') ? 'Yes' : 'No') . '</p>';
+        echo '<p><strong>Notice Dismissed:</strong> ' . (get_transient('hovervid_notice_dismissed') ? 'Yes' : 'No') . '</p>';
+        echo '<pre style="background: #fff; padding: 10px; border: 1px solid #ccc; margin: 10px 0; font-size: 12px;">';
+        echo 'Full Domain Status: ' . print_r($domain_status, true);
+        echo '</pre>';
+        echo '</div>';
+    }
+}
+add_action('admin_notices', 'slvp_debug_domain_status', 1);

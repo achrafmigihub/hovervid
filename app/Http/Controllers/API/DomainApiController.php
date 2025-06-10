@@ -321,6 +321,48 @@ class DomainApiController extends Controller
     }
     
     /**
+     * Unverify a domain (disable verification)
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function unverify($id)
+    {
+        try {
+            // Begin transaction
+            DB::beginTransaction();
+            
+            // Update domain verification status to false
+            $updated = DB::update("
+                UPDATE domains 
+                SET is_verified = false, updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            ", [$id]);
+            
+            if (!$updated) {
+                throw new Exception('Domain not found');
+            }
+            
+            // Commit transaction
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Domain verification disabled successfully'
+            ]);
+        } catch (Exception $e) {
+            // Rollback transaction
+            DB::rollBack();
+            
+            Log::error('Error disabling domain verification: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to disable domain verification: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
      * Store a new domain
      * 
      * @param Request $request
@@ -330,29 +372,49 @@ class DomainApiController extends Controller
     {
         try {
             // For client self-registration, auto-fill user_id and platform if not provided
+            // For admin creation, user_id should be provided in the request
             $user = Auth::user();
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Authentication required'
-                ], 401);
-            }
-
+            
             // Validate the request
             $validated = $request->validate([
                 'domain' => 'required|string|max:255|unique:domains,domain',
                 'user_id' => 'sometimes|exists:users,id',
                 'platform' => 'sometimes|string|max:50',
+                'is_verified' => 'sometimes|boolean',
             ]);
 
-            // Auto-fill missing fields for client self-registration
+            // If user_id is not provided and user is authenticated, use authenticated user
             if (!isset($validated['user_id'])) {
+                if (!$user) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'user_id is required for domain creation'
+                    ], 400);
+                }
                 $validated['user_id'] = $user->id;
             }
             
             if (!isset($validated['platform'])) {
                 $validated['platform'] = 'wordpress'; // default platform
             }
+
+            // Check if the user already has a domain
+            $existingDomain = DB::selectOne("
+                SELECT d.domain, u.name as user_name, u.email as user_email 
+                FROM domains d 
+                LEFT JOIN users u ON d.user_id = u.id 
+                WHERE d.user_id = ?
+            ", [$validated['user_id']]);
+            
+            if ($existingDomain) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This user already has a domain ({$existingDomain->domain}). Each user can only have one domain assigned to them."
+                ], 400);
+            }
+
+            // Set initial verification status
+            $isVerified = $validated['is_verified'] ?? false;
             
             // Begin transaction
             DB::beginTransaction();
@@ -362,9 +424,9 @@ class DomainApiController extends Controller
                 'domain' => $validated['domain'],
                 'user_id' => $validated['user_id'],
                 'platform' => $validated['platform'],
-                'status' => 'inactive',
+                'plugin_status' => 'inactive',
                 'is_active' => false,
-                'is_verified' => false,
+                'is_verified' => $isVerified,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -374,7 +436,7 @@ class DomainApiController extends Controller
                 SELECT
                     d.id,
                     d.domain AS domain,
-                    COALESCE(d.status, 'inactive') AS status,
+                    COALESCE(d.plugin_status, 'inactive') AS status,
                     COALESCE(d.is_active, false) AS is_active,
                     COALESCE(d.is_verified, false) AS is_verified,
                     d.created_at,

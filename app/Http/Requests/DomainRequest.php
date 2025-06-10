@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class DomainRequest extends FormRequest
 {
@@ -25,6 +26,14 @@ class DomainRequest extends FormRequest
     {
         $user = Auth::user();
         $currentDomain = null;
+        
+        // Log the incoming request data for debugging
+        Log::info('DomainRequest validation started', [
+            'method' => $this->method(),
+            'input_data' => $this->all(),
+            'user_id' => $user ? $user->id : null,
+            'user_domain_id' => $user ? $user->domain_id : null
+        ]);
         
         // For updates, get the current user's active domain to ignore in unique validation
         if (($this->isMethod('PUT') || $this->isMethod('PATCH')) && $user) {
@@ -49,6 +58,11 @@ class DomainRequest extends FormRequest
         if ($this->isMethod('PUT') || $this->isMethod('PATCH')) {
             $rules['domain'][0] = 'sometimes';
         }
+
+        Log::info('DomainRequest validation rules generated', [
+            'rules' => $rules,
+            'current_domain_ignored' => $currentDomain ? $currentDomain->id : null
+        ]);
 
         return $rules;
     }

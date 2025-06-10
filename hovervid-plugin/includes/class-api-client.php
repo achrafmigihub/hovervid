@@ -74,6 +74,7 @@ class SLVP_API_Client {
         $server_name = $_SERVER['SERVER_NAME'] ?? '';
         $http_host = $_SERVER['HTTP_HOST'] ?? '';
         
+        // For local development, always use localhost:8000
         if (strpos($server_name, 'localhost') !== false || 
             strpos($server_name, '127.0.0.1') !== false ||
             strpos($server_name, '.local') !== false ||
@@ -84,9 +85,9 @@ class SLVP_API_Client {
             return 'http://localhost:8000/api';
         }
         
-        // Production fallback - you should always set HOVERVID_API_URL constant or environment variable
-        // This is a fallback that you should replace with your actual production URL
-        return 'https://your-laravel-backend.com/api'; // Replace with your production Laravel URL
+        // If we can't determine the environment, try localhost:8000 as fallback for development
+        // This is likely a development environment
+        return 'http://localhost:8000/api';
     }
     
     /**
@@ -194,6 +195,87 @@ class SLVP_API_Client {
     }
     
     /**
+     * Check if video is available for content by hash
+     *
+     * @param string $domain Domain name
+     * @param string $content_hash Content hash to check
+     * @return array|false Result with video availability or false on failure
+     */
+    public function check_video_availability($domain, $content_hash) {
+        if (empty($domain) || empty($content_hash)) {
+            return false;
+        }
+        
+        $endpoint = '/plugin/check-video';
+        $data = [
+            'domain_name' => $domain,
+            'content_hash' => $content_hash
+        ];
+        
+        $response = $this->make_api_request('POST', $endpoint, $data);
+        
+        if ($response && isset($response['success'])) {
+            return $response;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Get video URL for content by hash
+     *
+     * @param string $domain Domain name
+     * @param string $content_hash Content hash
+     * @return array|false Video data or false on failure
+     */
+    public function get_video_by_hash($domain, $content_hash) {
+        if (empty($domain) || empty($content_hash)) {
+            return false;
+        }
+        
+        $endpoint = '/plugin/get-video';
+        $data = [
+            'domain_name' => $domain,
+            'content_hash' => $content_hash
+        ];
+        
+        $response = $this->make_api_request('POST', $endpoint, $data);
+        
+        if ($response && isset($response['success'])) {
+            return $response;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Batch check video availability for multiple content hashes
+     *
+     * @param string $domain Domain name
+     * @param array $content_hashes Array of content hashes to check
+     * @return array|false Batch result with video availability map or false on failure
+     */
+    public function batch_check_video_availability($domain, $content_hashes) {
+        if (empty($domain) || empty($content_hashes)) {
+            return false;
+        }
+        
+        $endpoint = '/plugin/batch-check-videos';
+        $data = [
+            'domain_name' => $domain,
+            'content_hashes' => $content_hashes
+        ];
+        
+        $response = $this->make_api_request('POST', $endpoint, $data);
+        
+        if ($response && isset($response['success'])) {
+            return $response;
+        }
+        
+        return false;
+    }
+    
+    /**
      * Make API request to Laravel backend
      *
      * @param string $method HTTP method (GET, POST, PUT, DELETE)
@@ -203,6 +285,9 @@ class SLVP_API_Client {
      */
     private function make_api_request($method, $endpoint, $data = []) {
         $url = $this->api_base_url . $endpoint;
+        
+        // Log the full URL being accessed for debugging
+        error_log("HoverVid API Client: Making {$method} request to {$url}");
         
         // Prepare request arguments
         $args = [
@@ -218,19 +303,19 @@ class SLVP_API_Client {
         // Add data based on method
         if ($method === 'POST' || $method === 'PUT') {
             $args['body'] = json_encode($data);
+            error_log("HoverVid API Client: Request body: " . json_encode($data));
         } elseif ($method === 'GET' && !empty($data)) {
             $url .= '?' . http_build_query($data);
         }
-        
-        // Log the request for debugging
-        error_log("HoverVid API Client: Making {$method} request to {$url}");
         
         // Make the request using WordPress HTTP API
         $response = wp_remote_request($url, $args);
         
         // Check for errors
         if (is_wp_error($response)) {
-            error_log('HoverVid API Client Error: ' . $response->get_error_message());
+            $error_message = $response->get_error_message();
+            error_log('HoverVid API Client Error: ' . $error_message);
+            error_log('HoverVid API Client: Failed URL was: ' . $url);
             return false;
         }
         
@@ -239,7 +324,10 @@ class SLVP_API_Client {
         $http_code = wp_remote_retrieve_response_code($response);
         
         // Log response for debugging
-        error_log("HoverVid API Client: Response code {$http_code}, body: {$body}");
+        error_log("HoverVid API Client: Response code {$http_code}");
+        if ($http_code >= 400) {
+            error_log("HoverVid API Client: Error response body: {$body}");
+        }
         
         // Check HTTP status
         if ($http_code >= 200 && $http_code < 300) {
@@ -250,10 +338,11 @@ class SLVP_API_Client {
                 return $decoded;
             } else {
                 error_log('HoverVid API Client: JSON decode error - ' . json_last_error_msg());
+                error_log('HoverVid API Client: Raw response body: ' . $body);
                 return false;
             }
         } else {
-            error_log("HoverVid API Client: HTTP error {$http_code}");
+            error_log("HoverVid API Client: HTTP error {$http_code} for URL: {$url}");
             return false;
         }
     }
